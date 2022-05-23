@@ -284,6 +284,7 @@ rmw_create_subscription(
   memcpy(const_cast<char *>(subscription->topic_name), topic_name, strlen(topic_name) + 1);
   subscription->options = *subscription_options;
   subscription->can_loan_messages = false;
+  subscription->is_cft_enabled = false;
 
   rmw_ret = rmw_trigger_guard_condition(node_info->graph_guard_condition);
   if (rmw_ret != RMW_RET_OK) {
@@ -1090,6 +1091,30 @@ rmw_subscription_set_on_new_message_callback(
   (void)user_data;
 
   RMW_SET_ERROR_MSG("rmw_subscription_set_on_new_message_callback not implemented");
+  return RMW_RET_UNSUPPORTED;
+}
+
+rmw_ret_t
+rmw_subscription_set_content_filter(
+  rmw_subscription_t * subscription,
+  const rmw_subscription_content_filter_options_t * options)
+{
+  (void)subscription;
+  (void)options;
+  RMW_SET_ERROR_MSG("rmw_subscription_set_content_filter not implemented");
+  return RMW_RET_UNSUPPORTED;
+}
+
+rmw_ret_t
+rmw_subscription_get_content_filter(
+  const rmw_subscription_t * subscription,
+  rcutils_allocator_t * allocator,
+  rmw_subscription_content_filter_options_t * options)
+{
+  (void)subscription;
+  (void)allocator;
+  (void)options;
+  RMW_SET_ERROR_MSG("rmw_subscription_get_content_filter not implemented");
   return RMW_RET_UNSUPPORTED;
 }
 }  // extern "C"

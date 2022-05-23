@@ -747,4 +747,18 @@ rmw_client_response_subscription_get_actual_qos(
 
   return RMW_RET_OK;
 }
+
+rmw_ret_t
+rmw_client_set_on_new_response_callback(
+  rmw_client_t * rmw_client,
+  rmw_event_callback_t callback,
+  const void * user_data)
+{
+  (void)rmw_client;
+  (void)callback;
+  (void)user_data;
+
+  RMW_SET_ERROR_MSG("rmw_client_set_on_new_request_callback not implemented");
+  return RMW_RET_UNSUPPORTED;
+}
 }  // extern "C"

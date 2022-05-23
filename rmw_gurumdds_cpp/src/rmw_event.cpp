@@ -54,4 +54,18 @@ rmw_take_event(
 {
   return shared__rmw_take_event(gurum_gurumdds_identifier, event_handle, event_info, taken);
 }
+
+rmw_ret_t
+rmw_event_set_callback(
+  rmw_event_t * rmw_event,
+  rmw_event_callback_t callback,
+  const void * user_data)
+{
+  (void)rmw_event;
+  (void)callback;
+  (void)user_data;
+
+  RMW_SET_ERROR_MSG("rmw_event_set_callback not implemented");
+  return RMW_RET_UNSUPPORTED;
+}
 }  // extern "C"

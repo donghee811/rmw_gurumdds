@@ -1072,4 +1072,18 @@ rmw_return_loaned_message_from_subscription(
   RMW_SET_ERROR_MSG("rmw_return_loaned_message_from_subscription is not supported");
   return RMW_RET_UNSUPPORTED;
 }
+
+rmw_ret_t
+rmw_subscription_set_on_new_message_callback(
+  rmw_subscription_t * rmw_subscription,
+  rmw_event_callback_t callback,
+  const void * user_data)
+{
+  (void)rmw_subscription;
+  (void)callback;
+  (void)user_data;
+
+  RMW_SET_ERROR_MSG("rmw_subscription_set_on_new_message_callback not implemented");
+  return RMW_RET_UNSUPPORTED;
+}
 }  // extern "C"

@@ -70,8 +70,6 @@ add_library(rmw_gurumdds_cpp
   src/rmw_node_info_and_types.cpp
   src/rmw_publisher.cpp
   src/rmw_qos.cpp
-  src/rmw_request.cpp
-  src/rmw_response.cpp
   src/rmw_serialize.cpp
   src/rmw_service.cpp
   src/rmw_service_names_and_types.cpp

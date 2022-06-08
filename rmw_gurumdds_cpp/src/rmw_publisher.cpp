@@ -30,6 +30,7 @@
 #include "rmw_gurumdds_shared_cpp/namespace_prefix.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/types.hpp"
+#include "rmw_gurumdds_cpp/listener.hpp"
 
 #include "rcutils/types.h"
 #include "rcutils/error_handling.h"
@@ -256,6 +257,12 @@ rmw_create_publisher(
   publisher_info->topic_writer = topic_writer;
   publisher_info->rosidl_message_typesupport = type_support;
   publisher_info->publisher_gid.implementation_identifier = gurum_gurumdds_identifier;
+
+  listener_set_event_callbacks(nullptr, &publisher_info->listener);
+  dds_DataWriter_set_listener_context(publisher_info->topic_writer, &publisher_info->user_callback_data);
+  dds_DataWriter_set_listener(publisher_info->topic_writer, &publisher_info->listener, dds_OFFERED_DEADLINE_MISSED_STATUS | 
+                                                                                       dds_OFFERED_INCOMPATIBLE_QOS_STATUS |
+                                                                                       dds_LIVELINESS_LOST_STATUS);
 
   static_assert(
     sizeof(GurumddsPublisherGID) <= RMW_GID_STORAGE_SIZE,

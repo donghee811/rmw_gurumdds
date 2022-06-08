@@ -15,6 +15,27 @@
 #include "rmw/rmw.h"
 #include "rmw_gurumdds_shared_cpp/rmw_common.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
+#include "rmw_gurumdds_cpp/types.hpp"
+
+template<typename T>
+static void event_set_callback(
+  T event_info,
+  dds_StatusId status_id,
+  rmw_event_callback_t callback,
+  const void * user_data)
+{
+  GurumddsUserCallback * data = &(event_info->user_callback_data);
+
+  std::lock_guard<std::mutex> guard(data->mutex);
+
+  data->event_callback[status_id] = callback;
+  data->event_data[status_id] = user_data;
+
+  if (callback && data->event_unread_count[status_id]) {
+    callback(user_data, data->event_unread_count[status_id]);
+    data->event_unread_count[status_id] = 0;
+  }
+}
 
 extern "C"
 {
@@ -61,11 +82,76 @@ rmw_event_set_callback(
   rmw_event_callback_t callback,
   const void * user_data)
 {
-  (void)rmw_event;
-  (void)callback;
-  (void)user_data;
+  switch (rmw_event->event_type) {
+    case RMW_EVENT_LIVELINESS_CHANGED:
+      {
+        auto sub_info = static_cast<GurumddsSubscriberInfo *>(rmw_event->data);
+        event_set_callback(
+          sub_info, dds_LivelinessChangedStatusId,
+          callback, user_data);
+        break;
+      }
 
-  RMW_SET_ERROR_MSG("rmw_event_set_callback not implemented");
-  return RMW_RET_UNSUPPORTED;
+    case RMW_EVENT_REQUESTED_DEADLINE_MISSED:
+      {
+        auto sub_info = static_cast<GurumddsSubscriberInfo *>(rmw_event->data);
+        event_set_callback(
+          sub_info, dds_RequestedDeadlineMissedStatusId,
+          callback, user_data);
+        break;
+      }
+
+    case RMW_EVENT_REQUESTED_QOS_INCOMPATIBLE:
+      {
+        auto sub_info = static_cast<GurumddsSubscriberInfo *>(rmw_event->data);
+        event_set_callback(
+          sub_info, dds_RequestedIncompatibleQosStatusId,
+          callback, user_data);
+        break;
+      }
+
+    case RMW_EVENT_MESSAGE_LOST:
+      {
+        auto sub_info = static_cast<GurumddsSubscriberInfo *>(rmw_event->data);
+        event_set_callback(
+          sub_info, dds_SampleLostStatusId,
+          callback, user_data);
+        break;
+      }
+
+    case RMW_EVENT_LIVELINESS_LOST:
+      {
+        auto pub_info = static_cast<GurumddsPublisherInfo *>(rmw_event->data);
+        event_set_callback(
+          pub_info, dds_LivelinessLostStatusId,
+          callback, user_data);
+        break;
+      }
+
+    case RMW_EVENT_OFFERED_DEADLINE_MISSED:
+      {
+        auto pub_info = static_cast<GurumddsPublisherInfo *>(rmw_event->data);
+        event_set_callback(
+          pub_info, dds_OfferedDeadlineMissedStatusId,
+          callback, user_data);
+        break;
+      }
+
+    case RMW_EVENT_OFFERED_QOS_INCOMPATIBLE:
+      {
+        auto pub_info = static_cast<GurumddsPublisherInfo *>(rmw_event->data);
+        event_set_callback(
+          pub_info, dds_OfferedIncompatibleQosStatusId,
+          callback, user_data);
+        break;
+      }
+
+    case RMW_EVENT_INVALID:
+      {
+        return RMW_RET_INVALID_ARGUMENT;
+      }
+  }
+
+  return RMW_RET_OK;
 }
 }  // extern "C"

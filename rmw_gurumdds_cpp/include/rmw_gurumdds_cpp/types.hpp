@@ -16,7 +16,22 @@
 #define RMW_GURUMDDS_CPP__TYPES_HPP_
 
 #include "rmw/rmw.h"
+#include "rmw/event_callback_type.h"
 #include "rmw_gurumdds_shared_cpp/types.hpp"
+
+typedef struct _GurumddsUserCallback
+{
+  std::mutex mutex;
+  rmw_event_callback_t callback {nullptr};
+  const void * user_data {nullptr};
+  size_t unread_count {0};
+  rmw_event_callback_t event_callback[DDS_STATUS_ID_MAX + 1] {nullptr};
+  const void * event_data[DDS_STATUS_ID_MAX + 1] {nullptr};
+  size_t event_unread_count[DDS_STATUS_ID_MAX + 1] {0};
+  rmw_subscription_t * subscription {nullptr};
+  rmw_client_t * client {nullptr};
+  rmw_service_t * service {nullptr};
+} GurumddsUserCallback;
 
 typedef struct _GurumddsPublisherInfo : GurumddsEventInfo
 {
@@ -25,6 +40,8 @@ typedef struct _GurumddsPublisherInfo : GurumddsEventInfo
   dds_DataWriter * topic_writer;
   const rosidl_message_type_support_t * rosidl_message_typesupport;
   const char * implementation_identifier;
+  GurumddsUserCallback user_callback_data;
+  dds_DataWriterListener listener {};
 
   rmw_ret_t get_status(dds_StatusMask mask, void * event) override;
   dds_StatusCondition * get_statuscondition() override;
@@ -43,6 +60,8 @@ typedef struct _GurumddsSubscriberInfo : GurumddsEventInfo
   dds_ReadCondition * read_condition;
   const rosidl_message_type_support_t * rosidl_message_typesupport;
   const char * implementation_identifier;
+  GurumddsUserCallback user_callback_data;
+  dds_DataReaderListener listener {};
 
   rmw_ret_t get_status(dds_StatusMask mask, void * event) override;
   dds_StatusCondition * get_statuscondition() override;
@@ -62,6 +81,8 @@ typedef struct _GurumddsServiceInfo
   dds_ReadCondition * read_condition;
   dds_DomainParticipant * participant;
   const char * implementation_identifier;
+  GurumddsUserCallback user_callback_data;
+  dds_DataReaderListener listener {};
 } GurumddsServiceInfo;
 
 typedef struct _GurumddsClientInfo
@@ -77,6 +98,8 @@ typedef struct _GurumddsClientInfo
   dds_ReadCondition * read_condition;
   dds_DomainParticipant * participant;
   const char * implementation_identifier;
+  GurumddsUserCallback user_callback_data;
+  dds_DataReaderListener listener {};
 
   int64_t sequence_number;
   int8_t writer_guid[16];

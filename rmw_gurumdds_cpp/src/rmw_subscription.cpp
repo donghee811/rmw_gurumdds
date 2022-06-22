@@ -62,6 +62,40 @@ rmw_fini_subscription_allocation(rmw_subscription_allocation_t * allocation)
   return RMW_RET_UNSUPPORTED;
 }
 
+static rmw_ret_t
+_create_contentfilteredtopic(
+  dds_DomainParticipant * participant,
+  dds_Topic * topic,
+  const std::string & processed_topic_name,
+  const rmw_subscription_content_filter_options_t * options,
+  dds_ContentFilteredTopic ** content_filtered_topic)
+{
+  dds_StringSeq * expression_parameters = dds_StringSeq_create(options->expression_parameters.size);
+  for (size_t i = 0; i < options->expression_parameters.size; ++i) {
+    if (!dds_StringSeq_add(expression_parameters, options->expression_parameters.data[i])) {
+      dds_StringSeq_delete(expression_parameters);
+      return RMW_RET_ERROR;
+    }
+  }
+
+  std::string cft_topic_name = processed_topic_name + "_filtered_name";
+  dds_ContentFilteredTopic * filtered_topic =
+    dds_DomainParticipant_create_contentfilteredtopic(
+      participant,
+      cft_topic_name.c_str(),
+      topic,
+      options->filter_expression,
+      expression_parameters);
+  if (filtered_topic == nullptr) {
+    dds_StringSeq_delete(expression_parameters);
+    return RMW_RET_ERROR;
+  }
+
+  *content_filtered_topic = filtered_topic;
+  dds_StringSeq_delete(expression_parameters);
+  return RMW_RET_OK;
+}
+
 rmw_subscription_t *
 rmw_create_subscription(
   const rmw_node_t * node,
@@ -137,6 +171,7 @@ rmw_create_subscription(
   dds_TopicDescription * topic_desc = nullptr;
   dds_ReadCondition * read_condition = nullptr;
   dds_TypeSupport * dds_typesupport = nullptr;
+  dds_ContentFilteredTopic * filtered_topic = nullptr;
   dds_ReturnCode_t ret;
   rmw_ret_t rmw_ret;
 
@@ -228,13 +263,45 @@ rmw_create_subscription(
     }
   }
 
+  node_info->sub_list.push_back(dds_subscriber);
+
+  subscriber_info = new(std::nothrow) GurumddsSubscriberInfo();
+  if (subscriber_info == nullptr) {
+    RMW_SET_ERROR_MSG("failed to allocate subscriber info handle");
+    goto fail;
+  }
+
+  subscriber_info->participant = participant;
+  subscriber_info->topic_desc = topic_desc;
+  subscriber_info->processed_topic_name = processed_topic_name;
+  // Create ContentFilteredTopic
+  if (subscription_options->content_filter_options) {
+    rmw_subscription_content_filter_options_t * options =
+      subscription_options->content_filter_options;
+    if (options->filter_expression != nullptr) {
+      rmw_ret = _create_contentfilteredtopic(participant, topic, processed_topic_name, options, &filtered_topic);
+      if (rmw_ret != RMW_RET_OK || filtered_topic == nullptr) {
+        RMW_SET_ERROR_MSG("failed to create content filtered topic");
+        goto fail;
+      }
+      subscriber_info->filtered_topic = filtered_topic;
+      subscriber_info->topic_desc = filtered_topic;
+    }
+  }
+
+  subscription = rmw_subscription_allocate();
+  if (subscription == nullptr) {
+    RMW_SET_ERROR_MSG("failed to allocate subscription");
+    goto fail;
+  }
+
   if (!get_datareader_qos(dds_subscriber, qos_policies, &datareader_qos)) {
     // Error message already set
     goto fail;
   }
 
   topic_reader =
-    dds_Subscriber_create_datareader(dds_subscriber, topic, &datareader_qos, nullptr, 0);
+    dds_Subscriber_create_datareader(dds_subscriber, subscriber_info->topic_desc, &datareader_qos, nullptr, 0);
   if (topic_reader == nullptr) {
     RMW_SET_ERROR_MSG("failed to create datareader");
     dds_DataReaderQos_finalize(&datareader_qos);
@@ -254,25 +321,12 @@ rmw_create_subscription(
     goto fail;
   }
 
-  node_info->sub_list.push_back(dds_subscriber);
-
-  subscriber_info = new(std::nothrow) GurumddsSubscriberInfo();
-  if (subscriber_info == nullptr) {
-    RMW_SET_ERROR_MSG("failed to allocate subscriber info handle");
-    goto fail;
-  }
-
+  subscriber_info->datareader_qos = datareader_qos;
   subscriber_info->implementation_identifier = gurum_gurumdds_identifier;
   subscriber_info->subscriber = dds_subscriber;
   subscriber_info->topic_reader = topic_reader;
   subscriber_info->read_condition = read_condition;
   subscriber_info->rosidl_message_typesupport = type_support;
-
-  subscription = rmw_subscription_allocate();
-  if (subscription == nullptr) {
-    RMW_SET_ERROR_MSG("failed to allocate subscription");
-    goto fail;
-  }
 
   subscription->implementation_identifier = gurum_gurumdds_identifier;
   subscription->data = subscriber_info;
@@ -284,7 +338,7 @@ rmw_create_subscription(
   memcpy(const_cast<char *>(subscription->topic_name), topic_name, strlen(topic_name) + 1);
   subscription->options = *subscription_options;
   subscription->can_loan_messages = false;
-  subscription->is_cft_enabled = false;
+  subscription->is_cft_enabled = subscriber_info->filtered_topic != nullptr;
 
   rmw_ret = rmw_trigger_guard_condition(node_info->graph_guard_condition);
   if (rmw_ret != RMW_RET_OK) {
@@ -311,6 +365,10 @@ fail:
       rmw_free(const_cast<char *>(subscription->topic_name));
     }
     rmw_subscription_free(subscription);
+  }
+
+  if (filtered_topic != nullptr) {
+    dds_DomainParticipant_delete_contentfilteredtopic(participant, filtered_topic);
   }
 
   if (topic != nullptr) {
@@ -429,24 +487,13 @@ rmw_subscription_get_actual_qos(
   return RMW_RET_OK;
 }
 
-rmw_ret_t
-rmw_destroy_subscription(rmw_node_t * node, rmw_subscription_t * subscription)
+static rmw_ret_t
+_destroy_subscription(
+  const char * identifier,
+  rmw_node_t * node,
+  rmw_subscription_t * subscription,
+  bool reset_cft = false)
 {
-  RMW_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
-  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    node handle,
-    node->implementation_identifier,
-    gurum_gurumdds_identifier,
-    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION
-  );
-
-  RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
-  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    subscription handle,
-    subscription->implementation_identifier,
-    gurum_gurumdds_identifier,
-    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
-
   auto node_info = static_cast<GurumddsNodeInfo *>(node->data);
   if (node_info == nullptr) {
     RMW_SET_ERROR_MSG("node info handle is null");
@@ -516,6 +563,27 @@ rmw_destroy_subscription(rmw_node_t * node, rmw_subscription_t * subscription)
   rmw_ret_t rmw_ret = rmw_trigger_guard_condition(node_info->graph_guard_condition);
 
   return rmw_ret;
+}
+
+rmw_ret_t
+rmw_destroy_subscription(rmw_node_t * node, rmw_subscription_t * subscription)
+{
+  RMW_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    node handle,
+    node->implementation_identifier,
+    gurum_gurumdds_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION
+  );
+
+  RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    subscription handle,
+    subscription->implementation_identifier,
+    gurum_gurumdds_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+
+  return _destroy_subscription(gurum_gurumdds_identifier, node, subscription);
 }
 
 static rmw_ret_t
@@ -1094,15 +1162,98 @@ rmw_subscription_set_on_new_message_callback(
   return RMW_RET_UNSUPPORTED;
 }
 
+static rmw_ret_t
+_subscription_set_content_filter(
+  rmw_subscription_t * subscription,
+  const rmw_subscription_content_filter_options_t * options)
+{
+  dds_ReturnCode_t ret;
+  rmw_ret_t rmw_ret;
+  auto subscriber_info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
+  dds_ContentFilteredTopic * filtered_topic = subscriber_info->filtered_topic;
+  const bool filter_expression_empty = (*options->filter_expression == '\0');
+
+  if (!filtered_topic && filter_expression_empty) {
+    RMW_SET_ERROR_MSG("current subscriber has no content filter topic");
+    return RMW_RET_ERROR;
+  } else if (filtered_topic && !filter_expression_empty) {
+    dds_StringSeq * expression_parameters = dds_StringSeq_create(options->expression_parameters.size);
+    for (size_t i = 0; i < options->expression_parameters.size; ++i) {
+      if (!dds_StringSeq_add(expression_parameters, options->expression_parameters.data[i])) {
+        RMW_SET_ERROR_MSG("failed to add expression_parameters");
+        dds_StringSeq_delete(expression_parameters);
+        return RMW_RET_ERROR;
+      }
+    }
+    ret = dds_ContentFilteredTopic_set_filter_expression(filtered_topic, options->filter_expression);
+    if (ret != dds_RETCODE_OK) {
+      RMW_SET_ERROR_MSG("failed to set_filter_expression");
+      return RMW_RET_ERROR;
+    }
+    ret = dds_ContentFilteredTopic_set_expression_parameters(filtered_topic, expression_parameters);
+    if (ret != dds_RETCODE_OK) {
+      RMW_SET_ERROR_MSG("failed to set_expression_parameters");
+      return RMW_RET_ERROR;
+    }
+
+    return RMW_RET_OK;
+  }
+
+
+  return RMW_RET_ERROR;
+}
+
 rmw_ret_t
 rmw_subscription_set_content_filter(
   rmw_subscription_t * subscription,
   const rmw_subscription_content_filter_options_t * options)
 {
-  (void)subscription;
-  (void)options;
-  RMW_SET_ERROR_MSG("rmw_subscription_set_content_filter not implemented");
-  return RMW_RET_UNSUPPORTED;
+  RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_ARGUMENT_FOR_NULL(options, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    subscription,
+    subscription->implementation_identifier,
+    gurum_gurumdds_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+
+  rmw_ret_t ret = _subscription_set_content_filter(subscription, options);
+  auto info = static_cast<const GurumddsSubscriberInfo *>(subscription->data);
+  subscription->is_cft_enabled = (info && info->filtered_topic);
+  return ret;
+}
+
+static rmw_ret_t
+_subscription_get_content_filter(
+  const rmw_subscription_t * subscription,
+  rcutils_allocator_t * allocator,
+  rmw_subscription_content_filter_options_t * options)
+{
+  auto subscriber_info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
+  dds_ContentFilteredTopic * filtered_topic = subscriber_info->filtered_topic;
+  if (filtered_topic == nullptr) {
+    RMW_SET_ERROR_MSG("this subscriber has not created a ContentFilteredTopic");
+    return RMW_RET_ERROR;
+  }
+
+  dds_StringSeq * expression_parameters = dds_StringSeq_create(1);
+  dds_ReturnCode_t ret = dds_ContentFilteredTopic_get_expression_parameters(filtered_topic, expression_parameters);
+  if (ret != dds_RETCODE_OK) {
+    RMW_SET_ERROR_MSG("failed to get_expression_parameters");
+    return RMW_RET_ERROR;
+  }
+
+  std::vector<const char *> expression_array;
+  for (size_t i = 0; i < dds_StringSeq_length(expression_parameters); ++i) {
+    expression_array.push_back(dds_StringSeq_get(expression_parameters, i));
+  }
+
+  return rmw_subscription_content_filter_options_init(
+    dds_ContentFilteredTopic_get_filter_expression(filtered_topic),
+    expression_array.size(),
+    expression_array.data(),
+    allocator,
+    options
+  );
 }
 
 rmw_ret_t
@@ -1111,10 +1262,15 @@ rmw_subscription_get_content_filter(
   rcutils_allocator_t * allocator,
   rmw_subscription_content_filter_options_t * options)
 {
-  (void)subscription;
-  (void)allocator;
-  (void)options;
-  RMW_SET_ERROR_MSG("rmw_subscription_get_content_filter not implemented");
-  return RMW_RET_UNSUPPORTED;
+  RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_ARGUMENT_FOR_NULL(allocator, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_ARGUMENT_FOR_NULL(options, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    subscription,
+    subscription->implementation_identifier,
+    gurum_gurumdds_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+
+  return _subscription_get_content_filter(subscription, allocator, options);
 }
 }  // extern "C"

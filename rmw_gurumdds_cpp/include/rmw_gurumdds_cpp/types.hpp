@@ -44,6 +44,15 @@ typedef struct _GurumddsSubscriberInfo : GurumddsEventInfo
   const rosidl_message_type_support_t * rosidl_message_typesupport;
   const char * implementation_identifier;
 
+  // for re-create or delete content filtered topic ----------
+  const rmw_node_t * node {nullptr};
+  dds_DomainParticipant * participant {nullptr};
+  std::string processed_topic_name;
+  dds_TopicDescription * topic_desc {nullptr};
+  dds_ContentFilteredTopic * filtered_topic {nullptr};
+  dds_DataReaderQos datareader_qos;
+  // ----------------------------------------------------------
+
   rmw_ret_t get_status(dds_StatusMask mask, void * event) override;
   dds_StatusCondition * get_statuscondition() override;
   dds_StatusMask get_status_changes() override;

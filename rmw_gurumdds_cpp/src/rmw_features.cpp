@@ -17,6 +17,5 @@
 bool
 rmw_feature_supported(rmw_feature_t feature)
 {
-  (void)feature;
-  return false;
+  return feature == RMW_FEATURE_MESSAGE_INFO_PUBLICATION_SEQUENCE_NUMBER ? true : false;
 }

@@ -55,7 +55,6 @@ link_directories(${GurumDDS_LIBRARY_DIRS})
 
 add_library(rmw_gurumdds_cpp
   SHARED
-  src/types/custom_listener.cpp
   src/demangle.cpp
   src/event_converter.cpp
   src/get_entities.cpp

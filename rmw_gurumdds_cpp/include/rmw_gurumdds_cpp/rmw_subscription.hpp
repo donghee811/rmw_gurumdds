@@ -30,6 +30,11 @@ __rmw_create_subscription(
   const rmw_subscription_options_t * subscription_options,
   const bool internal);
 
+rmw_ret_t
+__rmw_destroy_subscription(
+  rmw_context_impl_t * const ctx,
+  rmw_subscription_t * const subscription);
+
 extern "C"
 {
 rmw_ret_t

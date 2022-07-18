@@ -30,6 +30,11 @@ __rmw_create_publisher(
   const rmw_publisher_options_t * publisher_options,
   const bool internal);
 
+rmw_ret_t
+__rmw_destroy_publisher(
+  rmw_context_impl_t * const ctx,
+  rmw_publisher_t * const publisher);
+
 extern "C"
 {
 rmw_ret_t

@@ -46,6 +46,15 @@ __rmw_create_publisher(
   return nullptr;
 }
 
+rmw_ret_t
+__rmw_destroy_publisher(
+  rmw_context_impl_t * const ctx,
+  rmw_publisher_t * const publisher)
+{
+  RMW_CHECK_ARGUMENT_FOR_NULL(ctx, RMW_RET_INVALID_ARGUMENT);
+  return RMW_RET_OK;
+}
+
 extern "C"
 {
 rmw_ret_t
@@ -214,62 +223,9 @@ rmw_destroy_publisher(rmw_node_t * node, rmw_publisher_t * publisher)
     publisher->implementation_identifier, RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
-  auto node_info = static_cast<GurumddsNodeInfo *>(node->data);
-  if (node_info == nullptr) {
-    RMW_SET_ERROR_MSG("node info handle is null");
-    return RMW_RET_ERROR;
-  }
-  auto participant = static_cast<dds_DomainParticipant *>(node_info->participant);
-  if (participant == nullptr) {
-    RMW_SET_ERROR_MSG("participant handle is null");
-    return RMW_RET_ERROR;
-  }
+  rmw_context_impl_t * ctx = node->context->impl;
 
-  GurumddsPublisherInfo * publisher_info = static_cast<GurumddsPublisherInfo *>(publisher->data);
-  dds_ReturnCode_t ret;
-  if (publisher_info) {
-    dds_Publisher * dds_publisher = publisher_info->publisher;
-
-    if (dds_publisher != nullptr) {
-      if (publisher_info->topic_writer != nullptr) {
-        ret = dds_Publisher_delete_datawriter(dds_publisher, publisher_info->topic_writer);
-        if (ret != dds_RETCODE_OK) {
-          RMW_SET_ERROR_MSG("failed to delete datawriter");
-          return RMW_RET_ERROR;
-        }
-        publisher_info->topic_writer = nullptr;
-      }
-
-      node_info->pub_list.remove(dds_publisher);
-      ret = dds_DomainParticipant_delete_publisher(participant, dds_publisher);
-      if (ret != dds_RETCODE_OK) {
-        RMW_SET_ERROR_MSG("failed to delete publisher");
-        return RMW_RET_ERROR;
-      }
-      publisher_info->publisher = nullptr;
-    } else if (publisher_info->topic_writer != nullptr) {
-      RMW_SET_ERROR_MSG("cannot delete datawriter because the publisher is null");
-      return RMW_RET_ERROR;
-    }
-
-    delete publisher_info;
-    publisher->data = nullptr;
-    if (publisher->topic_name != nullptr) {
-      RCUTILS_LOG_DEBUG_NAMED(
-        RMW_GURUMDDS_ID,
-        "Deleted publisher with topic '%s' on node '%s%s%s'",
-        publisher->topic_name, node->namespace_,
-        node->namespace_[strlen(node->namespace_) - 1] == '/' ? "" : "/", node->name);
-
-      rmw_free(const_cast<char *>(publisher->topic_name));
-    }
-  }
-
-  rmw_publisher_free(publisher);
-
-  rmw_ret_t rmw_ret = rmw_trigger_guard_condition(node_info->graph_guard_condition);
-
-  return rmw_ret;
+  return __rmw_destroy_publisher(ctx, publisher);
 }
 
 rmw_ret_t

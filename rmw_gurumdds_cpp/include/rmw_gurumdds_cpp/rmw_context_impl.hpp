@@ -48,6 +48,8 @@ struct rmw_context_impl_s
 
   dds_DomainId_t domain_id;
   dds_DomainParticipant * participant;
+
+  /* used for all DDS writers/readers created to support RMW Gurumdds(Publisher/Subscriber)Info. */
   dds_Publisher * publisher;
   dds_Subscriber * subscriber;
 
@@ -57,7 +59,7 @@ struct rmw_context_impl_s
 
   bool localhost_only;
 
-  /* Participant reference count*/
+  /* Participant reference count */
   size_t node_count{0};
 
   /* Mutex used to protect initialization/destruction. */

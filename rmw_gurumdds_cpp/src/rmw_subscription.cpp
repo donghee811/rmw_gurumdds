@@ -45,6 +45,15 @@ __rmw_create_subscription(
   return nullptr;
 }
 
+rmw_ret_t
+__rmw_destroy_subscription(
+  rmw_context_impl_t * const ctx,
+  rmw_subscription_t * const subscription)
+{
+  RMW_CHECK_ARGUMENT_FOR_NULL(ctx, RMW_RET_INVALID_ARGUMENT);
+  return RMW_RET_OK;
+}
+
 static rmw_ret_t
 _take(
   const char * identifier,
@@ -475,8 +484,7 @@ rmw_destroy_subscription(rmw_node_t * node, rmw_subscription_t * subscription)
     node handle,
     node->implementation_identifier,
     RMW_GURUMDDS_ID,
-    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION
-  );
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
   RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
@@ -485,75 +493,9 @@ rmw_destroy_subscription(rmw_node_t * node, rmw_subscription_t * subscription)
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
-  auto node_info = static_cast<GurumddsNodeInfo *>(node->data);
-  if (node_info == nullptr) {
-    RMW_SET_ERROR_MSG("node info handle is null");
-    return RMW_RET_ERROR;
-  }
-  auto participant = static_cast<dds_DomainParticipant *>(node_info->participant);
-  if (participant == nullptr) {
-    RMW_SET_ERROR_MSG("participant handle is null");
-    return RMW_RET_ERROR;
-  }
+  rmw_context_impl_t * ctx = node->context->impl;
 
-  dds_ReturnCode_t ret;
-  GurumddsSubscriberInfo * subscriber_info =
-    static_cast<GurumddsSubscriberInfo *>(subscription->data);
-  if (subscriber_info != nullptr) {
-    dds_Subscriber * dds_subscriber = subscriber_info->subscriber;
-    if (dds_subscriber != nullptr) {
-      dds_DataReader * topic_reader = subscriber_info->topic_reader;
-      if (topic_reader != nullptr) {
-        dds_ReadCondition * read_condition = subscriber_info->read_condition;
-        if (read_condition != nullptr) {
-          ret = dds_DataReader_delete_readcondition(topic_reader, read_condition);
-          if (ret != dds_RETCODE_OK) {
-            RMW_SET_ERROR_MSG("failed to delete readcondition");
-            return RMW_RET_ERROR;
-          }
-          subscriber_info->read_condition = nullptr;
-        }
-
-        ret = dds_Subscriber_delete_datareader(dds_subscriber, topic_reader);
-        if (ret != dds_RETCODE_OK) {
-          RMW_SET_ERROR_MSG("failed to delete datareader");
-          return RMW_RET_ERROR;
-        }
-        subscriber_info->topic_reader = nullptr;
-      } else if (subscriber_info->read_condition != nullptr) {
-        RMW_SET_ERROR_MSG("cannot delete readcondition because the datareader is null");
-        return RMW_RET_ERROR;
-      }
-
-      node_info->sub_list.remove(dds_subscriber);
-      ret = dds_DomainParticipant_delete_subscriber(participant, dds_subscriber);
-      if (ret != dds_RETCODE_OK) {
-        RMW_SET_ERROR_MSG("failed to delete subscriber");
-        return RMW_RET_ERROR;
-      }
-    } else if (subscriber_info->topic_reader != nullptr) {
-      RMW_SET_ERROR_MSG("cannot delte datareader because the subscriber is null");
-      return RMW_RET_ERROR;
-    }
-
-    delete subscriber_info;
-    subscription->data = nullptr;
-    if (subscription->topic_name != nullptr) {
-      RCUTILS_LOG_DEBUG_NAMED(
-        "rmw_gurumdds_cpp",
-        "Deleted subscription with topic '%s' on node '%s%s%s'",
-        subscription->topic_name, node->namespace_,
-        node->namespace_[strlen(node->namespace_) - 1] == '/' ? "" : "/", node->name);
-
-      rmw_free(const_cast<char *>(subscription->topic_name));
-    }
-  }
-
-  rmw_subscription_free(subscription);
-
-  rmw_ret_t rmw_ret = rmw_trigger_guard_condition(node_info->graph_guard_condition);
-
-  return rmw_ret;
+  return __rmw_destroy_subscription(ctx, subscription);
 }
 
 rmw_ret_t

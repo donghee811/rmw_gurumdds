@@ -18,9 +18,9 @@
 #include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 
 rmw_ret_t
-run_listener_thread(rmw_context_t * context);
+run_listener_thread(rmw_context_t * ctx);
 
 rmw_ret_t
-stop_listener_thread(rmw_context_t * context);
+stop_listener_thread(rmw_context_t * ctx);
 
 #endif  // RMW_GURUMDDS_CPP__CONTEXT_LISTENER_THREAD_HPP_

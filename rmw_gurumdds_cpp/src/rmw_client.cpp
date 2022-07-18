@@ -31,6 +31,7 @@
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/namespace_prefix.hpp"
 #include "rmw_gurumdds_cpp/qos.hpp"
+#include "rmw_gurumdds_cpp/names_and_types_helpers.hpp"
 #include "rmw_gurumdds_cpp/types.hpp"
 
 #include "type_support_service.hpp"
@@ -133,14 +134,10 @@ rmw_create_client(
 
   request_topic_name.reserve(256);
   response_topic_name.reserve(256);
-  if (!qos_policies->avoid_ros_namespace_conventions) {
-    request_topic_name += ros_service_requester_prefix;
-    response_topic_name += ros_service_response_prefix;
-  }
-  request_topic_name += service_name;
-  response_topic_name += service_name;
-  request_topic_name += "Request";
-  response_topic_name += "Reply";
+  request_topic_name = create_topic_name(
+    ros_service_requester_prefix, service_name, "Request", qos_policies);
+  response_topic_name = create_topic_name(
+    ros_service_response_prefix, service_name, "Reply", qos_policies);
 
   service_metastring =
     create_service_metastring(type_support->data, type_support->typesupport_identifier);

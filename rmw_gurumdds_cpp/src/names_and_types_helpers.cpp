@@ -165,3 +165,33 @@ copy_services_to_names_and_types(
 
   return RMW_RET_OK;
 }
+
+std::string
+create_topic_name(
+  const char * prefix,
+  const char * topic_name,
+  const char * suffix,
+  bool avoid_ros_namespace_conventions)
+{
+  if (avoid_ros_namespace_conventions) {
+    return std::string(topic_name) + std::string(suffix);
+  } else {
+    return std::string(prefix) +
+           std::string(topic_name) +
+           std::string(suffix);
+  }
+}
+
+std::string
+create_topic_name(
+  const char * prefix,
+  const char * topic_name,
+  const char * suffix,
+  const rmw_qos_profile_t * qos_policies)
+{
+  return create_topic_name(
+    prefix,
+    topic_name,
+    suffix,
+    qos_policies->avoid_ros_namespace_conventions);
+}

@@ -24,6 +24,14 @@ const char * const ros_service_response_prefix = "rr";
 std::vector<std::string> _ros_prefixes =
 {ros_topic_prefix, ros_service_requester_prefix, ros_service_response_prefix};
 
+std::string _resolve_prefix(const std::string & name, const std::string & prefix)
+{
+  if (name.rfind(prefix + "/", 0) == 0) {
+    return name.substr(prefix.length());
+  }
+  return "";
+}
+
 std::string _get_ros_prefix_if_exists(const std::string & topic_name)
 {
   for (const auto & prefix : _ros_prefixes) {

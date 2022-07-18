@@ -23,17 +23,28 @@
 
 #include "rmw/allocators.h"
 #include "rmw/error_handling.h"
-#include "rmw/rmw.h"
 #include "rmw/impl/cpp/macros.hpp"
 #include "rmw/types.h"
 
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/namespace_prefix.hpp"
 #include "rmw_gurumdds_cpp/qos.hpp"
+#include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
+#include "rmw_gurumdds_cpp/rmw_publisher.hpp"
 #include "rmw_gurumdds_cpp/types.hpp"
 
-#include "type_support_common.hpp"
-#include "type_support_service.hpp"
+rmw_publisher_t *
+__rmw_create_publisher(
+  rmw_context_impl_t * const ctx,
+  dds_DomainParticipant * const participant,
+  dds_Publisher * const pub,
+  const rosidl_message_type_support_t * type_supports,
+  const char * topic_name, const rmw_qos_profile_t * qos_policies,
+  const rmw_publisher_options_t * publisher_options,
+  const bool internal)
+{
+  return nullptr;
+}
 
 extern "C"
 {
@@ -77,261 +88,17 @@ rmw_create_publisher(
     return nullptr;
   }
 
-  if (topic_name == nullptr || strlen(topic_name) == 0) {
-    RMW_SET_ERROR_MSG("publisher topic is null or empty string");
-    return nullptr;
-  }
+  rmw_context_impl_t * ctx = node->context->impl;
 
-  if (qos_policies == nullptr) {
-    RMW_SET_ERROR_MSG("qos profile is null");
-    return nullptr;
-  }
-
-  if (publisher_options == nullptr) {
-    RMW_SET_ERROR_MSG("publisher_options is null");
-    return nullptr;
-  }
-
-  if (publisher_options->require_unique_network_flow_endpoints ==
-    RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_STRICTLY_REQUIRED)
-  {
-    RMW_SET_ERROR_MSG(
-      "Strict requirement on unique network flow endpoints for publishers not supported");
-    return nullptr;
-  }
-
-  GurumddsNodeInfo * node_info = static_cast<GurumddsNodeInfo *>(node->data);
-  if (node_info == nullptr) {
-    RMW_SET_ERROR_MSG("node info is null");
-    return nullptr;
-  }
-
-  dds_DomainParticipant * participant = node_info->participant;
-  if (participant == nullptr) {
-    RMW_SET_ERROR_MSG("participant handle is null");
-    return nullptr;
-  }
-
-  const rosidl_message_type_support_t * type_support =
-    get_message_typesupport_handle(type_supports, rosidl_typesupport_introspection_c__identifier);
-  if (type_support == nullptr) {
-    rcutils_reset_error();
-    type_support = get_message_typesupport_handle(
-      type_supports, rosidl_typesupport_introspection_cpp::typesupport_identifier);
-    if (type_support == nullptr) {
-      rcutils_reset_error();
-      RMW_SET_ERROR_MSG("type support not from this implementation");
-      return nullptr;
-    }
-  }
-
-  rmw_publisher_t * rmw_publisher = nullptr;
-  GurumddsPublisherInfo * publisher_info = nullptr;
-  dds_Publisher * dds_publisher = nullptr;
-  dds_PublisherQos publisher_qos;
-  dds_DataWriter * topic_writer = nullptr;
-  dds_DataWriterQos datawriter_qos;
-  dds_Topic * topic = nullptr;
-  dds_TopicDescription * topic_desc = nullptr;
-  dds_TypeSupport * dds_typesupport = nullptr;
-  dds_ReturnCode_t ret;
-  rmw_ret_t rmw_ret;
-
-  std::string type_name =
-    create_type_name(type_support->data, type_support->typesupport_identifier);
-  if (type_name.empty()) {
-    // Error message is already set
-    return nullptr;
-  }
-
-  std::string processed_topic_name;
-  if (!qos_policies->avoid_ros_namespace_conventions) {
-    processed_topic_name = std::string(ros_topic_prefix) + topic_name;
-  } else {
-    processed_topic_name = topic_name;
-  }
-
-  std::string metastring =
-    create_metastring(type_support->data, type_support->typesupport_identifier);
-  if (metastring.empty()) {
-    // Error message is already set
-    return nullptr;
-  }
-
-  dds_typesupport = dds_TypeSupport_create(metastring.c_str());
-  if (dds_typesupport == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create typesupport");
-    goto fail;
-  }
-
-  ret = dds_TypeSupport_register_type(dds_typesupport, participant, type_name.c_str());
-  if (ret != dds_RETCODE_OK) {
-    RMW_SET_ERROR_MSG("failed to register type to domain participant");
-    goto fail;
-  }
-
-  ret = dds_DomainParticipant_get_default_publisher_qos(participant, &publisher_qos);
-  if (ret != dds_RETCODE_OK) {
-    RMW_SET_ERROR_MSG("failed to get default publisher qos");
-    goto fail;
-  }
-
-  dds_publisher = dds_DomainParticipant_create_publisher(participant, &publisher_qos, nullptr, 0);
-  if (dds_publisher == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create publisher");
-    dds_PublisherQos_finalize(&publisher_qos);
-    goto fail;
-  }
-
-  ret = dds_PublisherQos_finalize(&publisher_qos);
-  if (ret != dds_RETCODE_OK) {
-    RMW_SET_ERROR_MSG("failed to finalize publisher qos");
-    goto fail;
-  }
-
-  // Look for message topic
-  topic_desc = dds_DomainParticipant_lookup_topicdescription(
-    participant, processed_topic_name.c_str());
-  if (topic_desc == nullptr) {
-    dds_TopicQos topic_qos;
-    ret = dds_DomainParticipant_get_default_topic_qos(participant, &topic_qos);
-    if (ret != dds_RETCODE_OK) {
-      RMW_SET_ERROR_MSG("failed to get default topic qos");
-      goto fail;
-    }
-
-    topic = dds_DomainParticipant_create_topic(
-      participant, processed_topic_name.c_str(), type_name.c_str(), &topic_qos, nullptr, 0);
-    if (topic == nullptr) {
-      RMW_SET_ERROR_MSG("failed to create topic");
-      dds_TopicQos_finalize(&topic_qos);
-      goto fail;
-    }
-
-    ret = dds_TopicQos_finalize(&topic_qos);
-    if (ret != dds_RETCODE_OK) {
-      RMW_SET_ERROR_MSG("failed to finalize topic qos");
-      goto fail;
-    }
-  } else {
-    dds_Duration_t timeout;
-    timeout.sec = 0;
-    timeout.nanosec = 1;
-    topic = dds_DomainParticipant_find_topic(participant, processed_topic_name.c_str(), &timeout);
-    if (topic == nullptr) {
-      RMW_SET_ERROR_MSG("failed to find topic");
-      goto fail;
-    }
-  }
-
-  if (!get_datawriter_qos(dds_publisher, qos_policies, &datawriter_qos)) {
-    // Error message already set
-    goto fail;
-  }
-
-  topic_writer = dds_Publisher_create_datawriter(dds_publisher, topic, &datawriter_qos, nullptr, 0);
-  if (topic_writer == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create datawriter");
-    dds_DataWriterQos_finalize(&datawriter_qos);
-    goto fail;
-  }
-
-  ret = dds_DataWriterQos_finalize(&datawriter_qos);
-  if (ret != dds_RETCODE_OK) {
-    RMW_SET_ERROR_MSG("failed to finalize datawriter qos");
-    goto fail;
-  }
-
-  node_info->pub_list.push_back(dds_publisher);
-
-  publisher_info = new(std::nothrow) GurumddsPublisherInfo();
-  if (publisher_info == nullptr) {
-    RMW_SET_ERROR_MSG("failed to allocate GurumddsPublisherInfo");
-    goto fail;
-  }
-
-  publisher_info->implementation_identifier = RMW_GURUMDDS_ID;
-  publisher_info->publisher = dds_publisher;
-  publisher_info->topic_writer = topic_writer;
-  publisher_info->rosidl_message_typesupport = type_support;
-  publisher_info->publisher_gid.implementation_identifier = RMW_GURUMDDS_ID;
-  publisher_info->sequence_number = 0;
-
-  static_assert(
-    sizeof(GurumddsPublisherGID) <= RMW_GID_STORAGE_SIZE,
-    "RMW_GID_STORAGE_SIZE insufficient to store the rmw_gurumdds_cpp GID implementation.");
-  memset(publisher_info->publisher_gid.data, 0, RMW_GID_STORAGE_SIZE);
-  {
-    auto publisher_gid =
-      reinterpret_cast<GurumddsPublisherGID *>(publisher_info->publisher_gid.data);
-    dds_DataWriter_get_guid(topic_writer, publisher_gid->publication_handle);
-  }
-
-  rmw_publisher = rmw_publisher_allocate();
-  if (rmw_publisher == nullptr) {
-    RMW_SET_ERROR_MSG("failed to allocate publisher");
-    goto fail;
-  }
-
-  rmw_publisher->implementation_identifier = RMW_GURUMDDS_ID;
-  rmw_publisher->data = publisher_info;
-  rmw_publisher->topic_name = reinterpret_cast<const char *>(rmw_allocate(strlen(topic_name) + 1));
-  if (rmw_publisher->topic_name == nullptr) {
-    RMW_SET_ERROR_MSG("failed to allocate memory for topic name");
-    goto fail;
-  }
-  memcpy(const_cast<char *>(rmw_publisher->topic_name), topic_name, strlen(topic_name) + 1);
-  rmw_publisher->options = *publisher_options;
-  rmw_publisher->can_loan_messages = false;
-
-  rmw_ret = rmw_trigger_guard_condition(node_info->graph_guard_condition);
-  if (rmw_ret != RMW_RET_OK) {
-    // Error message already set
-    goto fail;
-  }
-
-  dds_TypeSupport_delete(dds_typesupport);
-  dds_typesupport = nullptr;
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
-
-  RCUTILS_LOG_DEBUG_NAMED(
-    RMW_GURUMDDS_ID,
-    "Created publisher with topic '%s' on node '%s%s%s'",
-    topic_name, node->namespace_,
-    node->namespace_[strlen(node->namespace_) - 1] == '/' ? "" : "/", node->name);
-
-  return rmw_publisher;
-
-fail:
-  if (rmw_publisher != nullptr) {
-    if (rmw_publisher->topic_name != nullptr) {
-      rmw_free(const_cast<char *>(rmw_publisher->topic_name));
-    }
-    rmw_publisher_free(rmw_publisher);
-  }
-
-  if (topic != nullptr) {
-    dds_DomainParticipant_delete_topic(participant, topic);
-  }
-
-  if (dds_publisher != nullptr) {
-    if (topic_writer != nullptr) {
-      dds_Publisher_delete_datawriter(dds_publisher, topic_writer);
-    }
-    node_info->pub_list.remove(dds_publisher);
-    dds_DomainParticipant_delete_publisher(participant, dds_publisher);
-  }
-
-  if (dds_typesupport != nullptr) {
-    dds_TypeSupport_delete(dds_typesupport);
-  }
-
-  if (publisher_info != nullptr) {
-    delete publisher_info;
-  }
-
-  return nullptr;
+  return __rmw_create_publisher(
+    ctx,
+    ctx->participant,
+    ctx->publisher,
+    type_supports,
+    topic_name,
+    qos_policies,
+    publisher_options,
+    ctx->localhost_only);
 }
 
 rmw_ret_t

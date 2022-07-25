@@ -39,10 +39,126 @@ __rmw_create_publisher(
   dds_DomainParticipant * const participant,
   dds_Publisher * const pub,
   const rosidl_message_type_support_t * type_supports,
-  const char * topic_name, const rmw_qos_profile_t * qos_policies,
+  const char * topic_name,
+  const rmw_qos_profile_t * qos_policies,
   const rmw_publisher_options_t * publisher_options,
   const bool internal)
 {
+  std::lock_guard<std::mutex> guard(ctx->endpoint_mutex);
+  
+  const rosidl_message_type_support_t * type_support =
+    get_message_typesupport_handle(type_supports, rosidl_typesupport_introspection_c__identifier);
+  if (type_support == nullptr) {
+    rcutils_reset_error();
+    type_support = get_message_typesupport_handle(
+      type_supports, rosidl_typesupport_introspection_cpp::typesupport_identifier);
+    if (type_support == nullptr) {
+      rcutils_reset_error();
+      RMW_SET_ERROR_MSG("type support not from this implementation");
+      return nullptr;
+    }
+  }
+
+  rmw_publisher_t * rmw_publisher = nullptr;
+  GurumddsPublisherInfo * publisher_info = nullptr;
+  dds_PublisherQos publisher_qos;
+  dds_DataWriter * topic_writer = nullptr;
+  dds_DataWriterQos datawriter_qos;
+  dds_Topic * topic = nullptr;
+  dds_TopicDescription * topic_desc = nullptr;
+  dds_TypeSupport * dds_typesupport = nullptr;
+  dds_ReturnCode_t ret;
+  rmw_ret_t rmw_ret;
+
+  std::string type_name =
+    create_type_name(type_support->data, type_support->typesupport_identifier);
+  if (type_name.empty()) {
+    // Error message is already set
+    return nullptr;
+  }
+
+  std::string processed_topic_name = create_topic_name(
+    ros_topic_prefix, topic_name, "", qos_policies);
+
+  std::string metastring =
+    create_metastring(type_support->data, type_support->typesupport_identifier);
+  if (metastring.empty()) {
+    // Error message is already set
+    return nullptr;
+  }
+
+  dds_typesupport = dds_TypeSupport_create(metastring.c_str());
+  if (dds_typesupport == nullptr) {
+    RMW_SET_ERROR_MSG("failed to create typesupport");
+    goto fail;
+  }
+
+  ret = dds_TypeSupport_register_type(dds_typesupport, participant, type_name.c_str());
+  if (ret != dds_RETCODE_OK) {
+    RMW_SET_ERROR_MSG("failed to register type to domain participant");
+    goto fail;
+  }
+
+  topic_desc = dds_DomainParticipant_lookup_topicdescription(
+    participant, processed_topic_name.c_str());
+  if (topic_desc == nullptr) {
+    dds_TopicQos topic_qos;
+    ret = dds_DomainParticipant_get_default_topic_qos(participant, &topic_qos);
+    if (ret != dds_RETCODE_OK) {
+      RMW_SET_ERROR_MSG("failed to get default topic qos");
+      goto fail;
+    }
+
+    topic = dds_DomainParticipant_create_topic(
+      participant, processed_topic_name.c_str(), type_name.c_str(), &topic_qos, nullptr, 0);
+    if (topic == nullptr) {
+      RMW_SET_ERROR_MSG("failed to create topic");
+      dds_TopicQos_finalize(&topic_qos);
+      goto fail;
+    }
+
+    ret = dds_TopicQos_finalize(&topic_qos);
+    if (ret != dds_RETCODE_OK) {
+      RMW_SET_ERROR_MSG("failed to finalize topic qos");
+      goto fail;
+    }
+  } else {
+    dds_Duration_t timeout;
+    timeout.sec = 0;
+    timeout.nanosec = 1;
+    topic = dds_DomainParticipant_find_topic(participant, processed_topic_name.c_str(), &timeout);
+    if (topic == nullptr) {
+      RMW_SET_ERROR_MSG("failed to find topic");
+      goto fail;
+    }
+  }
+
+  if (!get_datawriter_qos(dds_publisher, qos_policies, &datawriter_qos)) {
+    // Error message already set
+    goto fail;
+  }
+
+  topic_writer = dds_Publisher_create_datawriter(dds_publisher, topic, &datawriter_qos, nullptr, 0);
+  if (topic_writer == nullptr) {
+    RMW_SET_ERROR_MSG("failed to create datawriter");
+    dds_DataWriterQos_finalize(&datawriter_qos);
+    goto fail;
+  }
+
+  ret = dds_DataWriterQos_finalize(&datawriter_qos);
+  if (ret != dds_RETCODE_OK) {
+    RMW_SET_ERROR_MSG("failed to finalize datawriter qos");
+    goto fail;
+  }
+
+  publisher_info = new(std::nothrow) GurumddsPublisherInfo();
+  if (publisher_info == nullptr) {
+    RMW_SET_ERROR_MSG("failed to allocate GurumddsPublisherInfo");
+    goto fail;
+  }
+
+  publisher_info->dds_writer = topic_writer;
+  
   return nullptr;
 }
 
@@ -84,30 +200,65 @@ rmw_publisher_t *
 rmw_create_publisher(
   const rmw_node_t * node,
   const rosidl_message_type_support_t * type_supports,
-  const char * topic_name, const rmw_qos_profile_t * qos_policies,
+  const char * topic_name,
+  const rmw_qos_profile_t * qos_policies,
   const rmw_publisher_options_t * publisher_options)
 {
-  if (node == nullptr) {
-    RMW_SET_ERROR_MSG("node handle is null");
+  RMW_CHECK_ARGUMENT_FOR_NULL(node, nullptr);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    node,
+    node->implementation_identifier,
+    RMW_GURUMDDS_ID,
+    return nullptr);
+  RMW_CHECK_ARGUMENT_FOR_NULL(type_supports, nullptr);
+  RMW_CHECK_ARGUMENT_FOR_NULL(topic_name, nullptr);
+  if (strlen(topic_name) == 0) {
+    RMW_SET_ERROR_MSG("topic_name argument is empty");
     return nullptr;
   }
+  RMW_CHECK_ARGUMENT_FOR_NULL(qos_policies, nullptr);
+  RMW_CHECK_ARGUMENT_FOR_NULL(publisher_options, nullptr); 
 
-  if (node->implementation_identifier != RMW_GURUMDDS_ID) {
-    RMW_SET_ERROR_MSG("node handle not from this implementation");
+  if (!qos_policies->avoid_ros_namespace_conventions) {
+    int validation_result = RMW_TOPIC_VALID;
+    rmw_ret_t ret = rmw_validate_full_topic_name(topic_name, &validation_result, nullptr);
+    if (ret != RMW_RET_OK) {
+      return nullptr;
+    }
+    if (validation_result != RMW_TOPIC_VALID) {
+      const char * reason = rmw_full_topic_name_validation_result_string(validation_result);
+      RMW_SET_ERROR_MSG_WITH_FORMAT_STRING(
+        "topic name is invalid: %s", reason);
+      return nullptr;
+    }
+  }
+
+  if (publisher_options->require_unique_network_flow_endpoints ==
+    RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_STRICTLY_REQUIRED)
+  {
+    RMW_SET_ERROR_MSG("Unique network flow endpoints not supported on publishers");
     return nullptr;
   }
 
   rmw_context_impl_t * ctx = node->context->impl;
 
-  return __rmw_create_publisher(
-    ctx,
-    ctx->participant,
-    ctx->publisher,
-    type_supports,
-    topic_name,
-    qos_policies,
-    publisher_options,
-    ctx->localhost_only);
+  rmw_publisher_t * const rmw_pub =
+    __rmw_create_publisher(
+      ctx,
+      ctx->participant,
+      ctx->publisher,
+      type_supports,
+      topic_name,
+      qos_policies,
+      publisher_options,
+      ctx->localhost_only);
+
+  if (rmw_pub == nullptr) {
+    RMW_SET_ERROR_MSG("failed to create RMW publisher");
+    return nullptr;
+  }
+
+  return rmw_pub;
 }
 
 rmw_ret_t

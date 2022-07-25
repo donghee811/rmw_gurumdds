@@ -53,6 +53,9 @@ struct rmw_context_impl_s
   dds_Publisher * publisher;
   dds_Subscriber * subscriber;
 
+  std::list<dds_Publisher *> pub_list;
+  std::list<dds_Subscriber *> sub_list;
+
   dds_DataReader * builtin_participant_datareader;
   dds_DataReader * builtin_publication_datareader;
   dds_DataReader * builtin_subscription_datareader;

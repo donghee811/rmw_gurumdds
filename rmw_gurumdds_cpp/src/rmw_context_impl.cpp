@@ -46,10 +46,10 @@ rmw_context_impl_t::initialize_node(
   const char * node_namespace,
   const bool localhost_only)
 {
-  RMW_CHECK_ARGUMENT_FOR_NULL(node_name, RMW_RET_INVALID_ARGUMENT);
-  RMW_CHECK_ARGUMENT_FOR_NULL(node_namespace, RMW_RET_INVALID_ARGUMENT);
+  (void)node_name;
+  (void)node_namespace;
 
-  if (node_count == 0u) {
+  if (this->node_count == 0u) {
     rmw_ret_t ret = this->initialize_participant(node_name, node_namespace, localhost_only);
     if (ret != RMW_RET_OK) {
       RMW_SET_ERROR_MSG("failed to initialize DomainParticipant");
@@ -57,8 +57,8 @@ rmw_context_impl_t::initialize_node(
     }
   }
 
-  node_count++;
-
+  this->node_count++;
+  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "initialized new node, totla node=%lu", this->node_count);
   return RMW_RET_OK;
 }
 
@@ -176,6 +176,12 @@ rmw_context_impl_t::initialize_participant(
     return RMW_RET_ERROR;
   }
 
+  ret = dds_PublisherQos_finalize(&publisher_qos);
+  if (ret != dds_RETCODE_OK) {
+    RMW_SET_ERROR_MSG("failed to finalize publisher qos");
+    return RMW_RET_ERROR;
+  }
+
   /* Create Subscriber */
   ret = dds_DomainParticipant_get_default_subscriber_qos(this->participant, &subscriber_qos);
   if (ret != dds_RETCODE_OK) {
@@ -190,6 +196,12 @@ rmw_context_impl_t::initialize_participant(
     return RMW_RET_ERROR;
   }
 
+  ret = dds_SubscriberQos_finalize(&subscriber_qos);
+  if (ret != dds_RETCODE_OK) {
+    RMW_SET_ERROR_MSG("failedto finalize subscriber qos");
+    return RMW_RET_ERROR;
+  }
+
   // Initialize graph_cache
   if (graph_cache_initialize(this) != RMW_RET_OK) {
     RMW_SET_ERROR_MSG("failed to initialize graph cache");
@@ -199,7 +211,7 @@ rmw_context_impl_t::initialize_participant(
   scope_exit_dp_finalize.cancel();
 
   RCUTILS_LOG_DEBUG_NAMED(
-    "rmw_gurumdds_cpp",
+    RMW_GURUMDDS_ID,
     "DomainParticipant initialized");
 
   return RMW_RET_OK;
@@ -276,7 +288,7 @@ rmw_context_impl_t::finalize_participant()
   }
 
   RCUTILS_LOG_DEBUG_NAMED(
-    "rmw_gurumdds_cpp",
+    RMW_GURUMDDS_ID,
     "DomainParticipant finalized");
 
   return RMW_RET_OK;

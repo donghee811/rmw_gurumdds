@@ -14,6 +14,8 @@
 
 #include <limits>
 
+#include "rmw_dds_common/time_utils.hpp"
+
 #include "rmw_gurumdds_cpp/qos.hpp"
 
 static inline bool is_time_unspecified(const rmw_time_t & time)
@@ -30,9 +32,10 @@ rmw_time_to_dds(const rmw_time_t & time)
     duration.nanosec = dds_DURATION_INFINITE_NSEC;
     return duration;
   }
+  rmw_time_t clamped_time = rmw_dds_common::clamp_rmw_time_to_dds_time(time);
   dds_Duration_t duration;
-  duration.sec = static_cast<int32_t>(time.sec);
-  duration.nanosec = static_cast<uint32_t>(time.nsec);
+  duration.sec = static_cast<int32_t>(clamped_time.sec);
+  duration.nanosec = static_cast<uint32_t>(clamped_time.nsec);
   return duration;
 }
 

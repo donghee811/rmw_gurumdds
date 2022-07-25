@@ -51,14 +51,6 @@ __rmw_create_node(
   const char * name,
   const char * namespace_)
 {
-  RCUTILS_CHECK_ARGUMENT_FOR_NULL(context, NULL);
-  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    context,
-    context->implementation_identifier,
-    implementation_identifier,
-    return NULL
-  );
-
   /* Validate node's name and namespace */
   int validation_result = RMW_NODE_NAME_VALID;
   rmw_ret_t ret = rmw_validate_node_name(name, &validation_result, nullptr);
@@ -81,12 +73,35 @@ __rmw_create_node(
     return nullptr;
   }
 
-  rmw_dds_common::Context * const common_ctx = &context->impl->common_ctx;
+  bool node_localhost_only =
+    context->options.localhost_only == RMW_LOCALHOST_ONLY_ENABLED;
+
+  rmw_context_impl_t * ctx = context->impl;
+  std::lock_guard<std::mutex> guard(ctx->initialization_mutext);
+
+  if (ctx->is_shutdown) {
+    RMW_SET_ERROR_MST("context is already shutdown");
+    return nullptr;
+  }
+
+  ret = ctx->initialize_node(namespace_, name, node_localhost_only);
+  if (ret != RMW_RET_OK) {
+    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "failed to initialize node in context");
+    return nullptr;
+  }
+
+  GurumddsNodeInfo * const node_info = new (std::nothrow) GurumddsNodeInfo(ctx);
+  if (node_info == nullptr) {
+    RMW_SET_ERROR_MSG("failed to allocate GurumddsNodeInfo");
+    return nullptr;
+  }
+
   rmw_node_t * node_handle = rmw_node_allocate();
   if (node_handle == nullptr) {
     RMW_SET_ERROR_MSG("failed to allocate memory for node handle");
     return nullptr;
   }
+
   auto cleanup_node = rcpputils::make_scope_exit(
     [node_handle]() {
       if (node_handle->name != nullptr) {
@@ -114,25 +129,16 @@ __rmw_create_node(
   memcpy(const_cast<char *>(node_handle->namespace_), namespace_, strlen(namespace_) + 1);
 
   node_handle->implementation_identifier = implementation_identifier;
-  node_handle->data = nullptr;
+  node_handle->data = node_info;
   node_handle->context = context;
 
-  {
-    std::lock_guard<std::mutex> guard(common_ctx->node_update_mutex);
-    rmw_dds_common::msg::ParticipantEntitiesInfo participant_msg =
-      common_ctx->graph_cache.add_node(common_ctx->gid, name, namespace_);
-    if (RMW_RET_OK != rmw_publish(
-        common_ctx->pub,
-        static_cast<void *>(&participant_msg),
-        nullptr))
-    {
-      RMW_SET_ERROR_MSG("failed to create node");
-      return nullptr;
-    }
+  if (grph_on_node_create(ctx, node_handle) != RMW_RET_OK) {
+    RMW_SET_ERROR_MSG("failed to create node");
+    return nullptr;
   }
 
   RCUTILS_LOG_DEBUG_NAMED(
-    "rmw_gurumdds_cpp",
+    RMW_GURUMDDS_ID,
     "Created node '%s' in namespace '%s'", name, namespace_);
 
   cleanup_node.cancel();
@@ -148,28 +154,30 @@ __rmw_destroy_node(const char * implementation_identifier, rmw_node_t * node)
     node->implementation_identifier, implementation_identifier,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
-  auto common_ctx = &node->context->impl->common_ctx;
-  {
-    std::lock_guard<std::mutex> guard(common_ctx->node_update_mutex);
-    rmw_dds_common::msg::ParticipantEntitiesInfo participant_msg =
-      common_ctx->graph_cache.remove_node(common_ctx->gid, node->name, node->namespace_);
-    if (RMW_RET_OK != rmw_publish(
-        common_ctx->pub,
-        static_cast<void *>(&participant_msg),
-        nullptr))
-    {
-      RMW_SET_ERROR_MSG("failed to destroy node");
-      return RMW_RET_ERROR;
-    }
+  rmw_context_impl_t * ctx = node->context->impl;
+  std::lock_guard<std::mutex> guard(ctx->initialization_mutext);
+
+  GurumddsNodeInfo * const node_info =
+    reinterpret_cast<GurumddsNodeInfo *>(node->data);
+
+  if (graph_on_node_deleted(ctx, node) != RMW_RET_OK) {
+    RMW_SET_ERROR_MSG("failed to update for node delete");
+    return RMW_RET_ERROR;
   }
 
   RCUTILS_LOG_DEBUG_NAMED(
-    "rmw_gurumdds_cpp",
+    RMW_GURUMDDS_ID,
     "Deleted node '%s' in namespace '%s'", node->name, node->namespace_);
 
   rmw_free(const_cast<char *>(node->name));
   rmw_free(const_cast<char *>(node->namespace_));
   rmw_node_free(node);
+  delete node_info;
+
+  if (ctx->finalize_node() != RMW_RET_OK) {
+    RMW_SET_ERROR_MSG("failed to finalize node");
+    return RMW_RET_ERROR;
+  }
 
   return RMW_RET_OK;
 }

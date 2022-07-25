@@ -46,10 +46,13 @@ sub_on_data_available(rmw_context_impl_t * const ctx);
 
 typedef struct _GurumddsNodeInfo
 {
-  dds_DomainParticipant * participant;
-  rmw_guard_condition_t * graph_guard_condition;
-  std::list<dds_Publisher *> pub_list;
-  std::list<dds_Subscriber *> sub_list;
+  rmw_context_impl_t * ctx;
+
+  explicit _GurumddsNodeInfo(rmw_context_impl_t * const ctx)
+  :
+  {
+    this->ctx = ctx;
+  }
 } GurumddsNodeInfo;
 
 typedef struct _GurumddsWaitSetInfo

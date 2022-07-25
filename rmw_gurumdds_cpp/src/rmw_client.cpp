@@ -45,35 +45,30 @@ rmw_create_client(
   const char * service_name,
   const rmw_qos_profile_t * qos_policies)
 {
-  if (node == nullptr) {
-    RMW_SET_ERROR_MSG("node handle is null");
-    return nullptr;
-  }
-
+  RMW_CHECK_ARGUMENT_FOR_NULL(node, nullptr);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    node handle, node->implementation_identifier,
-    RMW_GURUMDDS_ID, return nullptr)
-
+    node,
+    node->implementation_identifier,
+    RMW_GURUMDDS_ID,
+    return nullptr)
+  RMW_CHECK_ARGUMENT_FOR_NULL(type_supports, nullptr);
   if (service_name == nullptr || strlen(service_name) == 0) {
     RMW_SET_ERROR_MSG("client topic is null or empty string");
     return nullptr;
   }
+  RMW_CHECK_ARGUMENT_FOR_NULL(qos_policies, nullptr);
 
-  if (qos_policies == nullptr) {
-    RMW_SET_ERROR_MSG("qos_profile is null");
-    return nullptr;
-  }
-
-  GurumddsNodeInfo * node_info = static_cast<GurumddsNodeInfo *>(node->data);
-  if (node_info == nullptr) {
-    RMW_SET_ERROR_MSG("node info handle is null");
-    return nullptr;
-  }
-
-  dds_DomainParticipant * participant = node_info->participant;
-  if (participant == nullptr) {
-    RMW_SET_ERROR_MSG("participant handle is null");
-    return nullptr;
+  if (!qos_policies->avoid_ros_namespace_conventions) {
+    int validation_result = RMW_TOPIC_VALID;
+    rmw_ret_t ret = rmw_validate_full_topic_name(service_name, &validation_result, nullptr);
+    if (ret != RMW_RET_OK) {
+      return nullptr;
+    }
+    if (validation_result != RMW_TOPIC_VALID) {
+      const char * reason = rmw_full_topic_name_validation_result_string(validation_result);
+      RMW_SET_ERROR_MSG_WITH_FORMAT_STRING("service name is invalid: %s", reason);
+      return nullptr;
+    }
   }
 
   const rosidl_service_type_support_t * type_support =
@@ -89,7 +84,15 @@ rmw_create_client(
     }
   }
 
+  rmw_qos_profile_t adapted_qos_policies =
+    rmw_dds_common::qos_profile_update_best_available_for_services(*qos_policies);
+
+  rmw_context_impl_t * ctx = node->context->impl;
+  std::lock_guard<std::mutex> guard(ctx->endpoint_mutex);
+  
   GurumddsClientInfo * client_info = nullptr;
+  GurumddsPublisherInfo * request_pub = nullptr;
+  GurumddsSubscriberInfo * reply_sub = nullptr;
   rmw_client_t * rmw_client = nullptr;
 
   dds_SubscriberQos subscriber_qos;
@@ -154,9 +157,6 @@ rmw_create_client(
     goto fail;
   }
 
-  client_info->participant = participant;
-  client_info->implementation_identifier = RMW_GURUMDDS_ID;
-  client_info->service_typesupport = type_support;
   client_info->sequence_number = 0;
 
   request_typesupport = dds_TypeSupport_create(request_metastring.c_str());

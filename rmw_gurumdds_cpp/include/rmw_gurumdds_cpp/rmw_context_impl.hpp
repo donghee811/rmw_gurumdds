@@ -18,6 +18,7 @@
 #include <stdio.h>
 
 #include <limits>
+#include <list>
 #include <map>
 #include <mutex>
 #include <regex>

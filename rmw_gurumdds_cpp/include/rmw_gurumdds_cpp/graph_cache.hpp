@@ -15,7 +15,8 @@
 #ifndef RMW_GURUMDDS_CPP__GRAPH_CACHE_HPP_
 #define RMW_GURUMDDS_CPP__GRAPH_CACHE_HPP_
 
-#include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
+#include "rmw/rmw.h"
+
 #include "rmw_gurumdds_cpp/types.hpp"
 
 rmw_ret_t

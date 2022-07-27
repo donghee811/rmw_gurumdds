@@ -45,7 +45,7 @@ get_publisher(rmw_publisher_t * publisher)
   }
 
   GurumddsPublisherInfo * impl = static_cast<GurumddsPublisherInfo *>(publisher->data);
-  return impl->publisher;
+  return dds_DataWriter_get_publisher(impl->dds_writer);
 }
 
 dds_DataWriter *
@@ -60,7 +60,7 @@ get_data_writer(rmw_publisher_t * publisher)
   }
 
   GurumddsPublisherInfo * impl = static_cast<GurumddsPublisherInfo *>(publisher->data);
-  return impl->topic_writer;
+  return impl->dds_writer;
 }
 
 dds_Subscriber *
@@ -75,7 +75,7 @@ get_subscriber(rmw_subscription_t * subscription)
   }
 
   GurumddsSubscriberInfo * impl = static_cast<GurumddsSubscriberInfo *>(subscription->data);
-  return impl->subscriber;
+  return dds_DataReader_get_subscriber(impl->dds_reader);
 }
 
 dds_DataReader *
@@ -90,7 +90,7 @@ get_data_reader(rmw_subscription_t * subscription)
   }
 
   GurumddsSubscriberInfo * impl = static_cast<GurumddsSubscriberInfo *>(subscription->data);
-  return impl->topic_reader;
+  return impl->dds_reader;
 }
 
 dds_DataWriter *
@@ -105,7 +105,7 @@ get_request_data_writer(rmw_client_t * client)
   }
 
   GurumddsClientInfo * impl = static_cast<GurumddsClientInfo *>(client->data);
-  return impl->request_writer;
+  return impl->request_pub->dds_writer;
 }
 
 dds_DataReader *
@@ -120,7 +120,7 @@ get_response_data_reader(rmw_client_t * client)
   }
 
   GurumddsClientInfo * impl = static_cast<GurumddsClientInfo *>(client->data);
-  return impl->response_reader;
+  return impl->reply_sub->dds_reader;
 }
 
 dds_DataReader *
@@ -135,7 +135,7 @@ get_request_data_reader(rmw_service_t * service)
   }
 
   GurumddsServiceInfo * impl = static_cast<GurumddsServiceInfo *>(service->data);
-  return impl->request_reader;
+  return impl->request_sub->dds_reader;
 }
 
 dds_DataWriter *
@@ -150,6 +150,6 @@ get_response_data_writer(rmw_service_t * service)
   }
 
   GurumddsServiceInfo * impl = static_cast<GurumddsServiceInfo *>(service->data);
-  return impl->response_writer;
+  return impl->reply_pub->dds_writer;
 }
 }  // namespace rmw_gurumdds_cpp

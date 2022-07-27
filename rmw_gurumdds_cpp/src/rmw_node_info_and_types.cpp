@@ -44,7 +44,7 @@
 #include "rmw_gurumdds_cpp/guid.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/names_and_types_helpers.hpp"
-#include "rmw_gurumdds_cpp/types.hpp"
+#include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 
 using GetNamesAndTypesByNodeFunction = rmw_ret_t (*)(
   rmw_dds_common::Context *,
@@ -173,8 +173,8 @@ rmw_get_subscriber_names_and_types_by_node(
   RCUTILS_LOG_DEBUG_NAMED(
     RMW_GURUMDDS_ID,
     "rmw_get_subscriber_names_and_types_by_node: "
-    "node=%s%s, demangle=%d"
-    node_namespace, node_name, !no_demangle);
+    "node=%s%s, demangle=%s",
+    node_namespace, node_name, no_demangle == true ? "false" : "true");
   return __get_topic_names_and_types_by_node(
     node,
     allocator,
@@ -199,8 +199,8 @@ rmw_get_publisher_names_and_types_by_node(
   RCUTILS_LOG_DEBUG_NAMED(
     RMW_GURUMDDS_ID,
     "rmw_get_publisher_names_and_types_by_node: "
-    "node=%s%s, demangle=%d"
-    node_namespace, node_name, !no_demangle);
+    "node=%s%s, demangle=%s",
+    node_namespace, node_name, no_demangle == true ? "false" : "true");
   return __get_topic_names_and_types_by_node(
     node,
     allocator,

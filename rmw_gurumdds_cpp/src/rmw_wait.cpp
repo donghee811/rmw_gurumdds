@@ -20,7 +20,6 @@
 #include "rmw_gurumdds_cpp/dds_include.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/rmw_wait.hpp"
-#include "rmw_gurumdds_cpp/types.hpp"
 
 extern "C"
 {

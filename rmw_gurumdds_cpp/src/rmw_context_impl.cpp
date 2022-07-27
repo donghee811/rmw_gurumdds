@@ -297,5 +297,48 @@ rmw_context_impl_t::finalize_participant()
 rmw_ret_t
 rmw_context_impl_t::finalize()
 {
+  RCUTILS_LOG_DEBUG_NAMED(
+    RMW_GURUMDDS_ID,
+    "finalizing RMW context: %p",
+    reinterpret_cast<void *>(this));
+
+  dds_DomainParticipantFactory * factory = dds_DomainParticipantFactory_get_instance();
+  dds_InstanceHandleSeq* participants = dds_InstanceHandleSeq_create(4);
+
+  auto scope_exit_seq = rcpputils::make_scope_exit(
+    [&participants]()
+    {
+      dds_InstanceHandleSeq_delete(participants);
+    });
+
+  if (dds_RETCODE_OK !=
+    dds_DomainParticipantFactory_get_contained_entities(factory, participants))
+  {
+    RMW_SET_ERROR_MSG("failed to list existing participants");
+    return RMW_RET_ERROR;
+  }
+
+  for (uint32_t i = 0; i < dds_InstanceHandleSeq_length(participants); i++) {
+    dds_DomainParticipant * participant =
+      reinterpret_cast<dds_DomainParticipant *>(dds_InstanceHandleSeq_get(participants, i));
+    if (dds_RETCODE_OK !=
+      dds_DomainParticipant_delete_contained_entities(participant))
+    {
+      RMW_SET_ERROR_MSG("failed to delete DomainParticipant's entities");
+      return RMW_RET_ERROR;
+    }
+    if (dds_RETCODE_OK !=
+      dds_DomainParticipantFactory_delete_participant(factory, participant))
+    {
+      RMW_SET_ERROR_MSG("failed to delete DomainParticipant");
+      return RMW_RET_ERROR;
+    }
+  }
+
+  RCUTILS_LOG_DEBUG_NAMED(
+    RMW_GURUMDDS_ID,
+    "RMW context finalized: %p",
+    reinterpret_cast<void *>(this));
+
   return RMW_RET_OK;
 }

@@ -282,7 +282,7 @@ __rmw_wait(
         return RMW_RET_ERROR;
       }
 
-      dds_ReadCondition * read_condition = service_info->read_condition;
+      dds_ReadCondition * read_condition = service_info->request_sub->read_condition;
       if (read_condition == nullptr) {
         RMW_SET_ERROR_MSG("read condition handle is null");
         return RMW_RET_ERROR;
@@ -302,7 +302,7 @@ __rmw_wait(
         return RMW_RET_ERROR;
       }
 
-      dds_ReadCondition * read_condition = client_info->read_condition;
+      dds_ReadCondition * read_condition = client_info->reply_sub->read_condition;
       if (read_condition == nullptr) {
         RMW_SET_ERROR_MSG("read condition handle is null");
         return RMW_RET_ERROR;
@@ -479,7 +479,7 @@ __rmw_wait(
         return RMW_RET_ERROR;
       }
 
-      dds_ReadCondition * read_condition = service_info->read_condition;
+      dds_ReadCondition * read_condition = service_info->request_sub->read_condition;
       if (read_condition == nullptr) {
         RMW_SET_ERROR_MSG("read condition handle is null");
         return RMW_RET_ERROR;
@@ -515,7 +515,7 @@ __rmw_wait(
         return RMW_RET_ERROR;
       }
 
-      dds_ReadCondition * read_condition = client_info->read_condition;
+      dds_ReadCondition * read_condition = client_info->reply_sub->read_condition;
       if (read_condition == nullptr) {
         RMW_SET_ERROR_MSG("read condition handle is null");
         return RMW_RET_ERROR;

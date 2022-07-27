@@ -25,7 +25,6 @@
 #include "rmw_gurumdds_cpp/demangle.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/names_and_types_helpers.hpp"
-#include "rmw_gurumdds_cpp/types.hpp"
 
 constexpr char SAMPLE_PREFIX[] = "/Sample_";
 

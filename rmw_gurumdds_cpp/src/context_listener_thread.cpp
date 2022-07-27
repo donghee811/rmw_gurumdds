@@ -34,7 +34,7 @@
 #include "rmw_gurumdds_cpp/context_listener_thread.hpp"
 #include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
-#include "rmw_gurumdds_cpp/types.hpp"
+#include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 
 static
 dds_Condition *

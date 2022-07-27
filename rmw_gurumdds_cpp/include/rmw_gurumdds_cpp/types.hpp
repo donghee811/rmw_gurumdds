@@ -29,7 +29,6 @@
 #include <string>
 #include <utility>
 
-#include "rmw/rmw.h"
 #include "rmw/ret_types.h"
 
 #include "rmw_gurumdds_cpp/dds_include.hpp"
@@ -49,7 +48,6 @@ typedef struct _GurumddsNodeInfo
   rmw_context_impl_t * ctx;
 
   explicit _GurumddsNodeInfo(rmw_context_impl_t * const ctx)
-  :
   {
     this->ctx = ctx;
   }

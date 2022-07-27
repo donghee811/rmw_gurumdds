@@ -41,7 +41,7 @@
 
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/dds_include.hpp"
-#include "rmw_gurumdds_cpp/types.hpp"
+#include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 
 rmw_node_t *
@@ -77,10 +77,10 @@ __rmw_create_node(
     context->options.localhost_only == RMW_LOCALHOST_ONLY_ENABLED;
 
   rmw_context_impl_t * ctx = context->impl;
-  std::lock_guard<std::mutex> guard(ctx->initialization_mutext);
+  std::lock_guard<std::mutex> guard(ctx->initialization_mutex);
 
   if (ctx->is_shutdown) {
-    RMW_SET_ERROR_MST("context is already shutdown");
+    RMW_SET_ERROR_MSG("context is already shutdown");
     return nullptr;
   }
 
@@ -132,7 +132,7 @@ __rmw_create_node(
   node_handle->data = node_info;
   node_handle->context = context;
 
-  if (grph_on_node_create(ctx, node_handle) != RMW_RET_OK) {
+  if (graph_on_node_created(ctx, node_handle) != RMW_RET_OK) {
     RMW_SET_ERROR_MSG("failed to create node");
     return nullptr;
   }
@@ -155,7 +155,7 @@ __rmw_destroy_node(const char * implementation_identifier, rmw_node_t * node)
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
   rmw_context_impl_t * ctx = node->context->impl;
-  std::lock_guard<std::mutex> guard(ctx->initialization_mutext);
+  std::lock_guard<std::mutex> guard(ctx->initialization_mutex);
 
   GurumddsNodeInfo * const node_info =
     reinterpret_cast<GurumddsNodeInfo *>(node->data);

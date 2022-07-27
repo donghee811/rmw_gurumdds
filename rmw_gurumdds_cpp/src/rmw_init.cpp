@@ -181,6 +181,7 @@ rmw_init(const rmw_init_options_t * options, rmw_context_t * context)
 
 fail:
   if (context->impl != nullptr) {
+    context->impl->finalize();
     delete context->impl;
     context->impl = nullptr;
   }
@@ -229,6 +230,7 @@ rmw_context_fini(rmw_context_t * context)
 
   rmw_ret_t ret = rmw_init_options_fini(&context->options);
 
+  context->impl->finalize();
   delete context->impl;
   *context = rmw_get_zero_initialized_context();
 

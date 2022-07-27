@@ -19,6 +19,7 @@
 #include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/guid.hpp"
 #include "rmw_gurumdds_cpp/qos.hpp"
+#include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 #include "rmw_gurumdds_cpp/types.hpp"
 
 rmw_ret_t GurumddsPublisherInfo::get_status(
@@ -163,7 +164,7 @@ __parse_map(uint8_t * const data, const uint32_t data_len)
 
 static rmw_ret_t
 __get_user_data_key(
-  const dds_ParticipantBuiltinTopicData * const data,
+  dds_ParticipantBuiltinTopicData * data,
   const std::string key,
   std::string & value,
   bool & found)

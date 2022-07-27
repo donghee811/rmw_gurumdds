@@ -31,7 +31,6 @@
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/namespace_prefix.hpp"
 #include "rmw_gurumdds_cpp/names_and_types_helpers.hpp"
-#include "rmw_gurumdds_cpp/types.hpp"
 
 extern "C"
 {

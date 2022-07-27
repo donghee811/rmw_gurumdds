@@ -22,8 +22,8 @@
 #include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/gid.hpp"
 #include "rmw_gurumdds_cpp/qos.hpp"
+#include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 #include "rmw_gurumdds_cpp/rmw_publisher.hpp"
-#include "rmw_gurumdds_cpp/rmw_subscription.hpp"
 #include "rmw_gurumdds_cpp/rmw_subscription.hpp"
 
 #include "rosidl_typesupport_cpp/message_type_support.hpp"

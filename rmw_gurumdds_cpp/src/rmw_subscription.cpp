@@ -20,13 +20,18 @@
 
 #include "rcutils/error_handling.h"
 
+#include "rcpputils/scope_exit.hpp"
+
 #include "rmw/allocators.h"
 #include "rmw/error_handling.h"
 #include "rmw/serialized_message.h"
+#include "rmw/validate_full_topic_name.h"
 
+#include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/guid.hpp"
 #include "rmw_gurumdds_cpp/namespace_prefix.hpp"
+#include "rmw_gurumdds_cpp/names_and_types_helpers.hpp"
 #include "rmw_gurumdds_cpp/qos.hpp"
 #include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 #include "rmw_gurumdds_cpp/rmw_subscription.hpp"
@@ -38,11 +43,180 @@ __rmw_create_subscription(
   dds_DomainParticipant * const participant,
   dds_Subscriber * const sub,
   const rosidl_message_type_support_t * type_supports,
-  const char * topic_name, const rmw_qos_profile_t * qos_policies,
+  const char * topic_name,
+  const rmw_qos_profile_t * qos_policies,
   const rmw_subscription_options_t * subscription_options,
   const bool internal)
 {
-  return nullptr;
+  std::lock_guard<std::mutex> guard(ctx->endpoint_mutex);
+  
+  const rosidl_message_type_support_t * type_support =
+    get_message_typesupport_handle(type_supports, rosidl_typesupport_introspection_c__identifier);
+  if (type_support == nullptr) {
+    rcutils_reset_error();
+    type_support = get_message_typesupport_handle(
+      type_supports, rosidl_typesupport_introspection_cpp::typesupport_identifier);
+    if (type_support == nullptr) {
+      rcutils_reset_error();
+      RMW_SET_ERROR_MSG("type support not from this implementation");
+      return nullptr;
+    }
+  }
+
+  rmw_subscription_t * rmw_subscription = nullptr;
+  GurumddsSubscriberInfo * subscriber_info = nullptr;
+  dds_DataReader * topic_reader = nullptr;
+  dds_DataReaderQos datareader_qos;
+  dds_Topic * topic = nullptr;
+  dds_TopicDescription * topic_desc = nullptr;
+  dds_ReadCondition * read_condition = nullptr;
+  dds_TypeSupport * dds_typesupport = nullptr;
+  dds_ReturnCode_t ret;
+  rmw_ret_t rmw_ret;
+
+  std::string type_name =
+    create_type_name(type_support->data, type_support->typesupport_identifier);
+  if (type_name.empty()) {
+    // Error message is already set
+    return nullptr;
+  }
+
+  std::string processed_topic_name = create_topic_name(
+    ros_topic_prefix, topic_name, "", qos_policies);
+
+  std::string metastring =
+    create_metastring(type_support->data, type_support->typesupport_identifier);
+  if (metastring.empty()) {
+    // Error message is already set
+    return nullptr;
+  }
+
+  dds_typesupport = dds_TypeSupport_create(metastring.c_str());
+  if (dds_typesupport == nullptr) {
+    RMW_SET_ERROR_MSG("failed to create typesupport");
+    return nullptr;
+  }
+
+  ret = dds_TypeSupport_register_type(dds_typesupport, participant, type_name.c_str());
+  if (ret != dds_RETCODE_OK) {
+    RMW_SET_ERROR_MSG("failed to register type to domain participant");
+    return nullptr;
+  }
+
+  topic_desc = dds_DomainParticipant_lookup_topicdescription(
+    participant, processed_topic_name.c_str());
+  if (topic_desc == nullptr) {
+    dds_TopicQos topic_qos;
+    ret = dds_DomainParticipant_get_default_topic_qos(participant, &topic_qos);
+    if (ret != dds_RETCODE_OK) {
+      RMW_SET_ERROR_MSG("failed to get default topic qos");
+      return nullptr;
+    }
+
+    topic = dds_DomainParticipant_create_topic(
+      participant, processed_topic_name.c_str(), type_name.c_str(), &topic_qos, nullptr, 0);
+    if (topic == nullptr) {
+      RMW_SET_ERROR_MSG("failed to create topic");
+      dds_TopicQos_finalize(&topic_qos);
+      return nullptr;
+    }
+
+    ret = dds_TopicQos_finalize(&topic_qos);
+    if (ret != dds_RETCODE_OK) {
+      RMW_SET_ERROR_MSG("failed to finalize topic qos");
+      return nullptr;
+    }
+  } else {
+    dds_Duration_t timeout;
+    timeout.sec = 0;
+    timeout.nanosec = 1;
+    topic = dds_DomainParticipant_find_topic(participant, processed_topic_name.c_str(), &timeout);
+    if (topic == nullptr) {
+      RMW_SET_ERROR_MSG("failed to find topic");
+      return nullptr;
+    }
+  }
+
+  if (!get_datareader_qos(sub, qos_policies, &datareader_qos)) {
+    // Error message already set
+    return nullptr;
+  }
+
+  topic_reader = dds_Subscriber_create_datareader(sub, topic, &datareader_qos, nullptr, 0);
+  if (topic_reader == nullptr) {
+    RMW_SET_ERROR_MSG("failed to create datareader");
+    dds_DataReaderQos_finalize(&datareader_qos);
+    return nullptr;
+  }
+
+  ret = dds_DataReaderQos_finalize(&datareader_qos);
+  if (ret != dds_RETCODE_OK) {
+    RMW_SET_ERROR_MSG("failed to finalize datareader qos");
+    return nullptr;
+  }
+
+  read_condition = dds_DataReader_create_readcondition(
+    topic_reader, dds_ANY_SAMPLE_STATE, dds_ANY_VIEW_STATE, dds_ANY_INSTANCE_STATE);
+  if (read_condition == nullptr) {
+    RMW_SET_ERROR_MSG("failed to create read condition");
+    return nullptr;
+  }
+
+  subscriber_info = new(std::nothrow) GurumddsSubscriberInfo();
+  if (subscriber_info == nullptr) {
+    RMW_SET_ERROR_MSG("failed to allocate GurumddsSubscriberInfo");
+    return nullptr;
+  }
+
+  subscriber_info->topic_reader = topic_reader;
+  subscriber_info->read_condition = read_condition;
+  subscriber_info->rosidl_message_typesupport = type_support;
+  subscriber_info->implementation_identifier = RMW_GURUMDDS_ID;
+  subscriber_info->ctx = ctx;
+
+  rmw_subscription = rmw_subscription_allocate();
+  if (rmw_subscription == nullptr) {
+    RMW_SET_ERROR_MSG("failed to allocate subscription");
+    return nullptr;
+  }
+  rmw_subscription->topic_name = nullptr;
+
+  auto scope_exit_rmw_subscription_delete = rcpputils::make_scope_exit(
+    [rmw_subscription]() {
+      if (rmw_subscription->topic_name != nullptr) {
+        rmw_free(const_cast<char *>(rmw_subscription->topic_name));
+      }
+      rmw_subscription_free(rmw_subscription);
+    });
+
+  rmw_subscription->implementation_identifier = RMW_GURUMDDS_ID;
+  rmw_subscription->data = subscriber_info;
+  rmw_subscription->topic_name
+    = reinterpret_cast<const char *>(rmw_allocate(strlen(topic_name) + 1));
+  if (rmw_subscription->topic_name == nullptr) {
+    RMW_SET_ERROR_MSG("failed to allocate memory for topic name");
+    return nullptr;
+  }
+  memcpy(
+    const_cast<char *>(rmw_subscription->topic_name),
+    topic_name,
+    strlen(topic_name) + 1);
+  rmw_subscription->options = *subscription_options;
+  rmw_subscription->can_loan_messages = false;
+  rmw_subscription->is_cft_enabled = false;
+
+  if (!internal) {
+    if (graph_on_subscriber_created(ctx, node, subscriber_info) != RMW_RET_OK) {
+      RMW_SET_ERROR_MSG("failed to update graph for subscriber");
+      return nullptr;
+    }
+  }
+
+  dds_TypeSupport_delete(dds_typesupport);
+  dds_typesupport = nullptr;
+
+  scope_exit_rmw_subscription_delete.cancel();
+  return rmw_subscription;
 }
 
 rmw_ret_t
@@ -50,7 +224,35 @@ __rmw_destroy_subscription(
   rmw_context_impl_t * const ctx,
   rmw_subscription_t * const subscription)
 {
-  RMW_CHECK_ARGUMENT_FOR_NULL(ctx, RMW_RET_INVALID_ARGUMENT);
+  std::lock_guard<std::mutex> guard(ctx->endpoint_mutex);
+
+  auto subscriber_info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
+  if (subscriber_info == nullptr) {
+    RMW_SET_ERROR_MSG("invalid subscriber data");
+    return RMW_RET_ERROR;
+  }
+
+  dds_ReturnCode_t ret;
+  if (subscriber_info->topic_reader != nullptr) {
+    dds_Topic * topic = dds_DataReader_get_topicdescription(subscriber_info->topic_reader);
+    ret = dds_Subscriber_delete_datareader(ctx->subscriber, subscriber_info->topic_reader);
+    if (ret != dds_RETCODE_OK) {
+      RMW_SET_ERROR_MSG("failed to delete datareader");
+      return RMW_RET_ERROR;
+    }
+    subscriber_info->topic_reader = nullptr;
+
+    ret = dds_DomainParticipant_delete_topic(ctx->participant, topic);
+    if (ret == dds_RETCODE_PRECONDITION_NOT_MET) {
+      RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "The entity using the topic still exists.");
+    } else if (ret != dds_RETCODE_OK) {
+      RMW_SET_ERROR_MSG("failed to delete topic");
+      return RMW_RET_ERROR;
+    }
+  }
+
+  delete subscriber_info;
+  subscription->data = nullptr;
   return RMW_RET_OK;
 }
 
@@ -68,14 +270,15 @@ _take(
 
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
     subscription handle,
-    subscription->implementation_identifier, identifier,
+    subscription->implementation_identifier,
+    identifier,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
-  GurumddsSubscriberInfo * info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
-  RCUTILS_CHECK_FOR_NULL_WITH_MSG(info, "custom subscriber info is null", return RMW_RET_ERROR);
+  auto subscriber_info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(subscriber_info, RMW_RET_ERROR);
 
-  dds_DataReader * topic_reader = info->topic_reader;
-  RCUTILS_CHECK_FOR_NULL_WITH_MSG(topic_reader, "topic reader is null", return RMW_RET_ERROR);
+  dds_DataReader * topic_reader = subscriber_info->topic_reader;
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(topic_reader, RMW_RET_ERROR);
 
   dds_DataSeq * data_values = dds_DataSeq_create(1);
   if (data_values == nullptr) {
@@ -107,7 +310,7 @@ _take(
 
   if (ret == dds_RETCODE_NO_DATA) {
     RCUTILS_LOG_DEBUG_NAMED(
-      "rmw_gurumdds_cpp", "No data on topic %s", topic_name);
+      RMW_GURUMDDS_ID, "No data on topic %s", topic_name);
     dds_DataReader_raw_return_loan(topic_reader, data_values, sample_infos, sample_sizes);
     dds_DataSeq_delete(data_values);
     dds_SampleInfoSeq_delete(sample_infos);
@@ -125,7 +328,7 @@ _take(
   }
 
   RCUTILS_LOG_DEBUG_NAMED(
-    "rmw_gurumdds_cpp", "Received data on topic %s", topic_name);
+    RMW_GURUMDDS_ID, "Received data on topic %s", topic_name);
 
   dds_SampleInfo * sample_info = dds_SampleInfoSeq_get(sample_infos, 0);
 
@@ -141,8 +344,8 @@ _take(
     }
     uint32_t sample_size = dds_UnsignedLongSeq_get(sample_sizes, 0);
     bool result = deserialize_cdr_to_ros(
-      info->rosidl_message_typesupport->data,
-      info->rosidl_message_typesupport->typesupport_identifier,
+      subscriber_info->rosidl_message_typesupport->data,
+      subscriber_info->rosidl_message_typesupport->typesupport_identifier,
       ros_message,
       sample,
       static_cast<size_t>(sample_size)
@@ -177,7 +380,7 @@ _take(
         topic_reader, sample_info->publication_handle, custom_gid->publication_handle);
       if (ret != dds_RETCODE_OK) {
         if (ret == dds_RETCODE_ERROR) {
-          RCUTILS_LOG_WARN_NAMED("rmw_gurumdds_cpp", "Failed to get publication handle");
+          RCUTILS_LOG_WARN_NAMED(RMW_GURUMDDS_ID, "Failed to get publication handle");
         }
         memset(custom_gid->publication_handle, 0, sizeof(custom_gid->publication_handle));
       }
@@ -210,11 +413,11 @@ _take_serialized(
     identifier,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
-  GurumddsSubscriberInfo * info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
-  RCUTILS_CHECK_FOR_NULL_WITH_MSG(info, "custom subscriber info is null", return RMW_RET_ERROR);
+  auto subscriber_info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(subscriber_info, RMW_RET_ERROR);
 
-  dds_DataReader * topic_reader = info->topic_reader;
-  RCUTILS_CHECK_FOR_NULL_WITH_MSG(topic_reader, "topic reader is null", return RMW_RET_ERROR);
+  dds_DataReader * topic_reader = subscriber_info->topic_reader;
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(topic_reader, RMW_RET_ERROR);
 
   dds_DataSeq * data_values = dds_DataSeq_create(1);
   if (data_values == nullptr) {
@@ -246,7 +449,7 @@ _take_serialized(
 
   if (ret == dds_RETCODE_NO_DATA) {
     RCUTILS_LOG_DEBUG_NAMED(
-      "rmw_gurumdds_cpp", "No data on topic %s", topic_name);
+      RMW_GURUMDDS_ID, "No data on topic %s", topic_name);
     dds_DataReader_raw_return_loan(topic_reader, data_values, sample_infos, sample_sizes);
     dds_DataSeq_delete(data_values);
     dds_SampleInfoSeq_delete(sample_infos);
@@ -264,7 +467,7 @@ _take_serialized(
   }
 
   RCUTILS_LOG_DEBUG_NAMED(
-    "rmw_gurumdds_cpp", "Received data on topic %s", topic_name);
+    RMW_GURUMDDS_ID, "Received data on topic %s", topic_name);
 
   dds_SampleInfo * sample_info = dds_SampleInfoSeq_get(sample_infos, 0);
 
@@ -360,30 +563,71 @@ rmw_subscription_t *
 rmw_create_subscription(
   const rmw_node_t * node,
   const rosidl_message_type_support_t * type_supports,
-  const char * topic_name, const rmw_qos_profile_t * qos_policies,
+  const char * topic_name,
+  const rmw_qos_profile_t * qos_policies,
   const rmw_subscription_options_t * subscription_options)
 {
-  if (node == nullptr) {
-    RMW_SET_ERROR_MSG("node handle is null");
+  RMW_CHECK_ARGUMENT_FOR_NULL(node, nullptr);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    node,
+    node->implementation_identifier,
+    RMW_GURUMDDS_ID,
+    return nullptr);
+  RMW_CHECK_ARGUMENT_FOR_NULL(type_supports, nullptr);
+  RMW_CHECK_ARGUMENT_FOR_NULL(topic_name, nullptr);
+  if (strlen(topic_name) == 0) {
+    RMW_SET_ERROR_MSG("topic_name argument is empty");
     return nullptr;
   }
+  RMW_CHECK_ARGUMENT_FOR_NULL(qos_policies, nullptr);
+  RMW_CHECK_ARGUMENT_FOR_NULL(subscription_options, nullptr); 
 
-  if (node->implementation_identifier != RMW_GURUMDDS_ID) {
-    RMW_SET_ERROR_MSG("node handle not from this implementation");
+  if (!qos_policies->avoid_ros_namespace_conventions) {
+    int validation_result = RMW_TOPIC_VALID;
+    rmw_ret_t ret = rmw_validate_full_topic_name(topic_name, &validation_result, nullptr);
+    if (ret != RMW_RET_OK) {
+      return nullptr;
+    }
+    if (validation_result != RMW_TOPIC_VALID) {
+      const char * reason = rmw_full_topic_name_validation_result_string(validation_result);
+      RMW_SET_ERROR_MSG_WITH_FORMAT_STRING(
+        "topic name is invalid: %s", reason);
+      return nullptr;
+    }
+  }
+
+  if (subscription_options->require_unique_network_flow_endpoints ==
+    RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_STRICTLY_REQUIRED)
+  {
+    RMW_SET_ERROR_MSG("Unique network flow endpoints not supported on subscriptions");
     return nullptr;
   }
 
   rmw_context_impl_t * ctx = node->context->impl;
 
-  return __rmw_create_subscription(
-    ctx,
-    ctx->participant,
-    ctx->subscriber,
-    type_supports,
-    topic_name,
-    qos_policies,
-    subscription_options,
-    ctx->localhost_only);
+  rmw_subscription_t * const rmw_sub =
+    __rmw_create_subscription(
+      ctx,
+      ctx->participant,
+      ctx->subscriber,
+      type_supports,
+      topic_name,
+      qos_policies,
+      subscription_options,
+      ctx->localhost_only);
+
+  if (rmw_sub == nullptr) {
+    RMW_SET_ERROR_MSG("failed to create RMW subscription");
+    return nullptr;
+  }
+
+  RCUTILS_LOG_DEBUG_NAMED(
+    RMW_GURUMDDS_ID,
+    "Created subscription with topic '%s' on node '%s%s%s'",
+    topic_name, node->namespace_,
+    node->namespace_[strlen(node->namespace_) - 1] == '/' ? "" : "/", node->name);
+
+  return rmw_sub;
 }
 
 rmw_ret_t
@@ -391,29 +635,21 @@ rmw_subscription_count_matched_publishers(
   const rmw_subscription_t * subscription,
   size_t * publisher_count)
 {
-  if (subscription == nullptr) {
-    RMW_SET_ERROR_MSG("subscription handle is null");
-    return RMW_RET_INVALID_ARGUMENT;
-  }
+  RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    subscription,
+    subscription->implementation_identifier,
+    RMW_GURUMDDS_ID,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+  RMW_CHECK_ARGUMENT_FOR_NULL(publisher_count, RMW_RET_INVALID_ARGUMENT);
 
-  if (publisher_count == nullptr) {
-    RMW_SET_ERROR_MSG("publisher_count is null");
-    return RMW_RET_INVALID_ARGUMENT;
-  }
-
-  auto info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
-  if (info == nullptr) {
+  auto subscriber_info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
+  if (subscriber_info == nullptr) {
     RMW_SET_ERROR_MSG("subscriber internal data is invalid");
     return RMW_RET_ERROR;
   }
 
-  dds_Subscriber * dds_subscriber = info->subscriber;
-  if (dds_subscriber == nullptr) {
-    RMW_SET_ERROR_MSG("dds subscriber is null");
-    return RMW_RET_ERROR;
-  }
-
-  dds_DataReader * topic_reader = info->topic_reader;
+  dds_DataReader * topic_reader = subscriber_info->topic_reader;
   if (topic_reader == nullptr) {
     RMW_SET_ERROR_MSG("topic reader is null");
     return RMW_RET_ERROR;
@@ -440,21 +676,26 @@ rmw_subscription_get_actual_qos(
 {
   RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_ARGUMENT_FOR_NULL(qos, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    subscription handle,
+    subscription->implementation_identifier,
+    RMW_GURUMDDS_ID,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
-  GurumddsSubscriberInfo * info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
-  if (info == nullptr) {
+  auto subscriber_info = static_cast<GurumddsSubscriberInfo *>(subscription->data);
+  if (subscriber_info == nullptr) {
     RMW_SET_ERROR_MSG("subscription internal data is invalid");
     return RMW_RET_ERROR;
   }
 
-  dds_DataReader * data_reader = info->topic_reader;
-  if (data_reader == nullptr) {
+  dds_DataReader * topic_reader = subscriber_info->topic_reader;
+  if (topic_reader == nullptr) {
     RMW_SET_ERROR_MSG("subscription internal data reader is invalid");
     return RMW_RET_ERROR;
   }
 
   dds_DataReaderQos dds_qos;
-  dds_ReturnCode_t ret = dds_DataReader_get_qos(data_reader, &dds_qos);
+  dds_ReturnCode_t ret = dds_DataReader_get_qos(topic_reader, &dds_qos);
   if (ret != dds_RETCODE_OK) {
     RMW_SET_ERROR_MSG("subscription can't get data reader qos policies");
     return RMW_RET_ERROR;
@@ -495,7 +736,29 @@ rmw_destroy_subscription(rmw_node_t * node, rmw_subscription_t * subscription)
 
   rmw_context_impl_t * ctx = node->context->impl;
 
-  return __rmw_destroy_subscription(ctx, subscription);
+  if (graph_on_subscriber_deleted(
+      ctx, node, reinterpret_cast<GurumddsSubscriberInfo *>(subscription->data)))
+  {
+    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "failed to update graph for subscriber");
+    return RMW_RET_ERROR;
+  }
+
+  rmw_ret_t ret = __rmw_destroy_subscription(ctx, subscription);
+
+  if (ret == RMW_RET_OK) {
+    if (subscription->topic_name != nullptr) {
+      RCUTILS_LOG_DEBUG_NAMED(
+        RMW_GURUMDDS_ID,
+        "Deleted subscriber with topic '%s' on node '%s%s%s'",
+        subscription->topic_name, node->namespace_,
+        node->namespace_[strlen(node->namespace_) - 1] == '/' ? "" : "/", node->name);
+
+      rmw_free(const_cast<char *>(subscription->topic_name));
+    }
+    rmw_subscription_free(subscription);
+  }
+
+  return ret;
 }
 
 rmw_ret_t

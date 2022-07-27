@@ -144,16 +144,16 @@ __add_local_publisher(
     reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[1],
     reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[2],
     reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[3],
-    reinterpret_cast<const uint32_t *>(pub->ros_gid.data)[0],
-    reinterpret_cast<const uint32_t *>(pub->ros_gid.data)[1],
-    reinterpret_cast<const uint32_t *>(pub->ros_gid.data)[2],
-    reinterpret_cast<const uint32_t *>(pub->ros_gid.data)[3]);
+    reinterpret_cast<const uint32_t *>(pub->publisher_gid.data)[0],
+    reinterpret_cast<const uint32_t *>(pub->publisher_gid.data)[1],
+    reinterpret_cast<const uint32_t *>(pub->publisher_gid.data)[2],
+    reinterpret_cast<const uint32_t *>(pub->publisher_gid.data)[3]);
   
   dds_DataWriterQos dw_qos;
   dds_DataWriterQos * dw_qos_ptr = &dw_qos;
   dds_GUID_t endp_guid;
   dds_GUID_t dp_guid;
-  dds_Topic * topic = dds_DataWriter_get_topic(pub->dds_writer);
+  dds_Topic * topic = dds_DataWriter_get_topic(pub->topic_writer);
   const char * topic_name = dds_Topic_get_name(topic);
   const char * type_name = dds_Topic_get_type_name(topic);
 
@@ -171,12 +171,12 @@ __add_local_publisher(
       }
     });
 
-  if (dds_RETCODE_OK != dds_DataWriter_get_qos(pub->dds_writer, &dw_qos)) {
+  if (dds_RETCODE_OK != dds_DataWriter_get_qos(pub->topic_writer, &dw_qos)) {
     RMW_SET_ERROR_MSG("failed to get DataWriterQos");
     return RMW_RET_ERROR;
   }
 
-  dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(pub->dds_writer), &endp_guid);
+  dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(pub->topic_writer), &endp_guid);
   dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(ctx->participant), &dp_guid);
 
   return __add_entity(
@@ -213,16 +213,16 @@ __add_local_subscriber(
     reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[1],
     reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[2],
     reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[3],
-    reinterpret_cast<const uint32_t *>(sub->ros_gid.data)[0],
-    reinterpret_cast<const uint32_t *>(sub->ros_gid.data)[1],
-    reinterpret_cast<const uint32_t *>(sub->ros_gid.data)[2],
-    reinterpret_cast<const uint32_t *>(sub->ros_gid.data)[3]);
+    reinterpret_cast<const uint32_t *>(sub->subscriber_gid.data)[0],
+    reinterpret_cast<const uint32_t *>(sub->subscriber_gid.data)[1],
+    reinterpret_cast<const uint32_t *>(sub->subscriber_gid.data)[2],
+    reinterpret_cast<const uint32_t *>(sub->subscriber_gid.data)[3]);
   
   dds_DataReaderQos dr_qos;
   dds_DataReaderQos * dr_qos_ptr = &dr_qos;
   dds_GUID_t endp_guid;
   dds_GUID_t dp_guid;
-  dds_Topic * topic = reinterpret_cast<dds_Topic *>(dds_DataReader_get_topicdescription(sub->dds_reader));
+  dds_Topic * topic = reinterpret_cast<dds_Topic *>(dds_DataReader_get_topicdescription(sub->topic_reader));
   const char * topic_name = dds_Topic_get_name(topic);
   const char * type_name = dds_Topic_get_type_name(topic);
 
@@ -240,12 +240,12 @@ __add_local_subscriber(
       }
     });
 
-  if (dds_RETCODE_OK != dds_DataReader_get_qos(sub->dds_reader, &dr_qos)) {
+  if (dds_RETCODE_OK != dds_DataReader_get_qos(sub->topic_reader, &dr_qos)) {
     RMW_SET_ERROR_MSG("failed to get DataReaderQos");
     return RMW_RET_ERROR;
   }
 
-  dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(sub->dds_reader), &endp_guid);
+  dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(sub->topic_reader), &endp_guid);
   dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(ctx->participant), &dp_guid);
 
   return __add_entity(
@@ -502,14 +502,14 @@ graph_on_publisher_created(
 
   rmw_dds_common::msg::ParticipantEntitiesInfo msg =
     ctx->common_ctx.graph_cache.associate_writer(
-    pub->ros_gid,
+    pub->publisher_gid,
     ctx->common_ctx.gid,
     node->name,
     node->namespace_);
   if (graph_publish_update(ctx, reinterpret_cast<void *>(&msg)) != RMW_RET_OK) {
-    __remove_entity(ctx, pub->ros_gid, false);
+    __remove_entity(ctx, pub->publisher_gid, false);
     ctx->common_ctx.graph_cache.dissociate_writer(
-      pub->ros_gid,
+      pub->publisher_gid,
       ctx->common_ctx.gid,
       node->name,
       node->namespace_);
@@ -527,14 +527,14 @@ graph_on_publisher_deleted(
   bool failed = false;
   std::lock_guard<std::mutex> guard(ctx->common_ctx.node_update_mutex);
 
-  if (__remove_entity(ctx, pub->ros_gid, false) != RMW_RET_OK) {
+  if (__remove_entity(ctx, pub->publisher_gid, false) != RMW_RET_OK) {
     RMW_SET_ERROR_MSG("failed to remove publisher from graph_cache");
     failed = true;
   }
 
   rmw_dds_common::msg::ParticipantEntitiesInfo msg =
     ctx->common_ctx.graph_cache.dissociate_writer(
-    pub->ros_gid,
+    pub->publisher_gid,
     ctx->common_ctx.gid,
     node->name,
     node->namespace_);
@@ -560,14 +560,14 @@ graph_on_subscriber_created(
 
   rmw_dds_common::msg::ParticipantEntitiesInfo msg =
     ctx->common_ctx.graph_cache.associate_reader(
-    sub->ros_gid,
+    sub->subscriber_gid,
     ctx->common_ctx.gid,
     node->name,
     node->namespace_);
   if (graph_publish_update(ctx, reinterpret_cast<void *>(&msg)) != RMW_RET_OK) {
-    __remove_entity(ctx, sub->ros_gid, true);
+    __remove_entity(ctx, sub->subscriber_gid, true);
     ctx->common_ctx.graph_cache.dissociate_reader(
-      sub->ros_gid,
+      sub->subscriber_gid,
       ctx->common_ctx.gid,
       node->name,
       node->namespace_);
@@ -585,14 +585,14 @@ graph_on_subscriber_deleted(
   bool failed = false;
   std::lock_guard<std::mutex> guard(ctx->common_ctx.node_update_mutex);
 
-  if (__remove_entity(ctx, sub->ros_gid, true) != RMW_RET_OK) {
+  if (__remove_entity(ctx, sub->subscriber_gid, true) != RMW_RET_OK) {
     RMW_SET_ERROR_MSG("failed to remove subscriber from graph_cache");
     failed = true;
   }
 
   rmw_dds_common::msg::ParticipantEntitiesInfo msg =
     ctx->common_ctx.graph_cache.dissociate_reader(
-    sub->ros_gid,
+    sub->subscriber_gid,
     ctx->common_ctx.gid,
     node->name,
     node->namespace_);
@@ -612,8 +612,8 @@ graph_on_service_created(
 {
   std::lock_guard<std::mutex> guard(ctx->common_ctx.node_update_mutex);
 
-  const rmw_gid_t pub_gid = svc->reply_pub->ros_gid;
-  const rmw_gid_t sub_gid = svc->request_sub->ros_gid;
+  const rmw_gid_t pub_gid = svc->reply_pub->publisher_gid;
+  const rmw_gid_t sub_gid = svc->request_sub->subscriber_gid;
   bool add_pub = false;
   bool add_sub = false;
 
@@ -681,25 +681,25 @@ graph_on_service_deleted(
 
   rmw_ret_t rc = __remove_entity(
     ctx,
-    svc->request_sub->ros_gid,
+    svc->request_sub->subscriber_gid,
     true);
   failed = failed && (RMW_RET_OK == rc);
 
   rc = __remove_entity(
     ctx,
-    svc->reply_pub->ros_gid,
+    svc->reply_pub->publisher_gid,
     false);
   failed = failed && (RMW_RET_OK == rc);
 
   ctx->common_ctx.graph_cache.dissociate_writer(
-    svc->reply_pub->ros_gid,
+    svc->reply_pub->publisher_gid,
     ctx->common_ctx.gid,
     node->name,
     node->namespace_);
 
   rmw_dds_common::msg::ParticipantEntitiesInfo msg =
     ctx->common_ctx.graph_cache.dissociate_reader(
-    svc->request_sub->ros_gid,
+    svc->request_sub->subscriber_gid,
     ctx->common_ctx.gid,
     node->name,
     node->namespace_);
@@ -717,8 +717,8 @@ graph_on_client_created(
   GurumddsClientInfo * const client)
 {
   std::lock_guard<std::mutex> guard(ctx->common_ctx.node_update_mutex);
-  const rmw_gid_t pub_gid = client->request_pub->ros_gid;
-  const rmw_gid_t sub_gid = client->reply_sub->ros_gid;
+  const rmw_gid_t pub_gid = client->request_pub->publisher_gid;
+  const rmw_gid_t sub_gid = client->reply_sub->subscriber_gid;
   bool add_pub = false;
   bool add_sub = false;
 
@@ -785,25 +785,25 @@ graph_on_client_deleted(
 
   rmw_ret_t rc = __remove_entity(
     ctx,
-    client->reply_sub->ros_gid,
+    client->reply_sub->subscriber_gid,
     true);
   failed = failed && (RMW_RET_OK == rc);
 
   rc = __remove_entity(
     ctx,
-    client->request_pub->ros_gid,
+    client->request_pub->publisher_gid,
     false);
   failed = failed && (RMW_RET_OK == rc);
 
   ctx->common_ctx.graph_cache.dissociate_writer(
-    client->request_pub->ros_gid,
+    client->request_pub->publisher_gid,
     ctx->common_ctx.gid,
     node->name,
     node->namespace_);
 
   rmw_dds_common::msg::ParticipantEntitiesInfo msg =
     ctx->common_ctx.graph_cache.dissociate_reader(
-    client->reply_sub->ros_gid,
+    client->reply_sub->subscriber_gid,
     ctx->common_ctx.gid,
     node->name,
     node->namespace_);

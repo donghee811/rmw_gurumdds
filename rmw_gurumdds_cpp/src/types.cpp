@@ -29,7 +29,7 @@ rmw_ret_t GurumddsPublisherInfo::get_status(
   if (mask == dds_LIVELINESS_LOST_STATUS) {
     dds_LivelinessLostStatus status;
     dds_ReturnCode_t dds_ret =
-      dds_DataWriter_get_liveliness_lost_status(this->dds_writer, &status);
+      dds_DataWriter_get_liveliness_lost_status(this->topic_writer, &status);
     rmw_ret_t rmw_ret = check_dds_ret_code(dds_ret);
     if (rmw_ret != RMW_RET_OK) {
       return rmw_ret;
@@ -41,7 +41,7 @@ rmw_ret_t GurumddsPublisherInfo::get_status(
   } else if (mask == dds_OFFERED_DEADLINE_MISSED_STATUS) {
     dds_OfferedDeadlineMissedStatus status;
     dds_ReturnCode_t dds_ret =
-      dds_DataWriter_get_offered_deadline_missed_status(this->dds_writer, &status);
+      dds_DataWriter_get_offered_deadline_missed_status(this->topic_writer, &status);
     rmw_ret_t rmw_ret = check_dds_ret_code(dds_ret);
     if (rmw_ret != RMW_RET_OK) {
       return rmw_ret;
@@ -53,7 +53,7 @@ rmw_ret_t GurumddsPublisherInfo::get_status(
   } else if (mask == dds_OFFERED_INCOMPATIBLE_QOS_STATUS) {
     dds_OfferedIncompatibleQosStatus status;
     dds_ReturnCode_t dds_ret =
-      dds_DataWriter_get_offered_incompatible_qos_status(this->dds_writer, &status);
+      dds_DataWriter_get_offered_incompatible_qos_status(this->topic_writer, &status);
     rmw_ret_t rmw_ret = check_dds_ret_code(dds_ret);
     if (rmw_ret != RMW_RET_OK) {
       return rmw_ret;
@@ -71,12 +71,12 @@ rmw_ret_t GurumddsPublisherInfo::get_status(
 
 dds_StatusCondition * GurumddsPublisherInfo::get_statuscondition()
 {
-  return dds_DataWriter_get_statuscondition(this->dds_writer);
+  return dds_DataWriter_get_statuscondition(this->topic_writer);
 }
 
 dds_StatusMask GurumddsPublisherInfo::get_status_changes()
 {
-  return dds_DataWriter_get_status_changes(this->dds_writer);
+  return dds_DataWriter_get_status_changes(this->topic_writer);
 }
 
 rmw_ret_t GurumddsSubscriberInfo::get_status(
@@ -86,7 +86,7 @@ rmw_ret_t GurumddsSubscriberInfo::get_status(
   if (mask == dds_LIVELINESS_CHANGED_STATUS) {
     dds_LivelinessChangedStatus status;
     dds_ReturnCode_t dds_ret =
-      dds_DataReader_get_liveliness_changed_status(this->dds_reader, &status);
+      dds_DataReader_get_liveliness_changed_status(this->topic_reader, &status);
     rmw_ret_t rmw_ret = check_dds_ret_code(dds_ret);
     if (rmw_ret != RMW_RET_OK) {
       return rmw_ret;
@@ -101,7 +101,7 @@ rmw_ret_t GurumddsSubscriberInfo::get_status(
   } else if (mask == dds_REQUESTED_DEADLINE_MISSED_STATUS) {
     dds_RequestedDeadlineMissedStatus status;
     dds_ReturnCode_t dds_ret =
-      dds_DataReader_get_requested_deadline_missed_status(this->dds_reader, &status);
+      dds_DataReader_get_requested_deadline_missed_status(this->topic_reader, &status);
     rmw_ret_t rmw_ret = check_dds_ret_code(dds_ret);
     if (rmw_ret != RMW_RET_OK) {
       return rmw_ret;
@@ -114,7 +114,7 @@ rmw_ret_t GurumddsSubscriberInfo::get_status(
   } else if (mask == dds_REQUESTED_INCOMPATIBLE_QOS_STATUS) {
     dds_RequestedIncompatibleQosStatus status;
     dds_ReturnCode_t dds_ret =
-      dds_DataReader_get_requested_incompatible_qos_status(this->dds_reader, &status);
+      dds_DataReader_get_requested_incompatible_qos_status(this->topic_reader, &status);
     rmw_ret_t rmw_ret = check_dds_ret_code(dds_ret);
     if (rmw_ret != RMW_RET_OK) {
       return rmw_ret;
@@ -127,7 +127,7 @@ rmw_ret_t GurumddsSubscriberInfo::get_status(
   } else if (mask == dds_SAMPLE_LOST_STATUS) {
     dds_SampleLostStatus status;
     dds_ReturnCode_t dds_ret =
-      dds_DataReader_get_sample_lost_status(this->dds_reader, &status);
+      dds_DataReader_get_sample_lost_status(this->topic_reader, &status);
     rmw_ret_t rmw_ret = check_dds_ret_code(dds_ret);
     if (rmw_ret != RMW_RET_OK) {
       return rmw_ret;
@@ -144,12 +144,12 @@ rmw_ret_t GurumddsSubscriberInfo::get_status(
 
 dds_StatusCondition * GurumddsSubscriberInfo::get_statuscondition()
 {
-  return dds_DataReader_get_statuscondition(this->dds_reader);
+  return dds_DataReader_get_statuscondition(this->topic_reader);
 }
 
 dds_StatusMask GurumddsSubscriberInfo::get_status_changes()
 {
-  return dds_DataReader_get_status_changes(this->dds_reader);
+  return dds_DataReader_get_status_changes(this->topic_reader);
 }
 
 static std::map<std::string, std::vector<uint8_t>>

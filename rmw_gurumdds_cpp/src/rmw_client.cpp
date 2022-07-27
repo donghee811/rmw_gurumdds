@@ -27,6 +27,9 @@
 #include "rmw/error_handling.h"
 #include "rmw/impl/cpp/macros.hpp"
 #include "rmw/types.h"
+#include "rmw/validate_full_topic_name.h"
+
+#include "rmw_dds_common/qos.hpp"
 
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/namespace_prefix.hpp"
@@ -52,8 +55,9 @@ rmw_create_client(
     RMW_GURUMDDS_ID,
     return nullptr)
   RMW_CHECK_ARGUMENT_FOR_NULL(type_supports, nullptr);
-  if (service_name == nullptr || strlen(service_name) == 0) {
-    RMW_SET_ERROR_MSG("client topic is null or empty string");
+  RMW_CHECK_ARGUMENT_FOR_NULL(service_name, nullptr);
+  if (strlen(service_name) == 0) {
+    RMW_SET_ERROR_MSG("client topic is empty");
     return nullptr;
   }
   RMW_CHECK_ARGUMENT_FOR_NULL(qos_policies, nullptr);
@@ -95,13 +99,9 @@ rmw_create_client(
   GurumddsSubscriberInfo * reply_sub = nullptr;
   rmw_client_t * rmw_client = nullptr;
 
-  dds_SubscriberQos subscriber_qos;
-  dds_PublisherQos publisher_qos;
   dds_DataReaderQos datareader_qos;
   dds_DataWriterQos datawriter_qos;
 
-  dds_Publisher * dds_publisher = nullptr;
-  dds_Subscriber * dds_subscriber = nullptr;
   dds_DataWriter * request_writer = nullptr;
   dds_DataReader * response_reader = nullptr;
   dds_ReadCondition * read_condition = nullptr;
@@ -260,26 +260,6 @@ rmw_create_client(
   }
 
   // Create datawriter for request
-  ret = dds_DomainParticipant_get_default_publisher_qos(participant, &publisher_qos);
-  if (ret != dds_RETCODE_OK) {
-    RMW_SET_ERROR_MSG("failed to get default publisher qos");
-    goto fail;
-  }
-
-  dds_publisher = dds_DomainParticipant_create_publisher(participant, &publisher_qos, nullptr, 0);
-  if (dds_publisher == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create publisher");
-    dds_PublisherQos_finalize(&publisher_qos);
-    goto fail;
-  }
-  client_info->dds_publisher = dds_publisher;
-
-  ret = dds_PublisherQos_finalize(&publisher_qos);
-  if (ret != dds_RETCODE_OK) {
-    RMW_SET_ERROR_MSG("failed to finalize publisher qos");
-    goto fail;
-  }
-
   if (!get_datawriter_qos(dds_publisher, qos_policies, &datawriter_qos)) {
     // Error message already set
     goto fail;

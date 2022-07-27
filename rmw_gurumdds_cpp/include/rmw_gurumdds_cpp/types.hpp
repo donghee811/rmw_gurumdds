@@ -70,8 +70,8 @@ typedef struct _GurumddsEventInfo
 
 typedef struct _GurumddsPublisherInfo : GurumddsEventInfo
 {
-  rmw_gid_t ros_gid;
-  dds_DataWriter * dds_writer;
+  rmw_gid_t publisher_gid;
+  dds_DataWriter * topic_writer;
   const rosidl_message_type_support_t * rosidl_message_typesupport;
   const char * implementation_identifier;
   int64_t sequence_number;
@@ -89,8 +89,8 @@ typedef struct _GurumddsPublisherGID
 
 typedef struct _GurumddsSubscriberInfo : GurumddsEventInfo
 {
-  rmw_gid_t ros_gid;
-  dds_DataReader * dds_reader;
+  rmw_gid_t subscriber_gid;
+  dds_DataReader * topic_reader;
   dds_ReadCondition * read_condition;
   const rosidl_message_type_support_t * rosidl_message_typesupport;
   const char * implementation_identifier;
@@ -101,19 +101,31 @@ typedef struct _GurumddsSubscriberInfo : GurumddsEventInfo
   dds_StatusMask get_status_changes() override;
 } GurumddsSubscriberInfo;
 
-typedef struct _GurumddsServiceInfo
-{
-  GurumddsPublisherInfo * reply_pub;
-  GurumddsSubscriberInfo * request_sub;
-  rmw_context_impl_t * ctx;
-} GurumddsServiceInfo;
-
 typedef struct _GurumddsClientInfo
 {
-  GurumddsPublisherInfo * request_pub;
-  GurumddsSubscriberInfo * reply_sub;
-  std::atomic_uint next_request_id;
+  const rosidl_service_type_support_t * service_typesupport;
+
+  dds_DataWriter * request_writer;
+  dds_DataReader * response_reader;
+  dds_ReadCondition * read_condition;
+
+  const char * implementation_identifier;
   rmw_context_impl_t * ctx;
+
+  int64_t sequence_number;
+  int8_t writer_guid[16];
 } GurumddsClientInfo;
+
+typedef struct _GurumddsServiceInfo
+{
+  const rosidl_service_type_support_t * service_typesupport;
+
+  dds_DataWriter * response_writer;
+  dds_DataReader * request_reader;
+  dds_ReadCondition * read_condition;
+
+  const char * implementation_identifier;
+  rmw_context_impl_t * ctx;
+} GurumddsServiceInfo;
 
 #endif  // RMW_GURUMDDS_CPP__TYPES_HPP_

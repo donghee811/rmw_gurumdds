@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <regex>
 #include <string>
 #include <vector>
 

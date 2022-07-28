@@ -29,6 +29,7 @@
 #include "rmw/types.h"
 #include "rmw/validate_full_topic_name.h"
 
+#include "rmw_gurumdds_cpp/gid.hpp"
 #include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/namespace_prefix.hpp"
@@ -41,6 +42,7 @@
 rmw_publisher_t *
 __rmw_create_publisher(
   rmw_context_impl_t * const ctx,
+  const rmw_node_t * node,
   dds_DomainParticipant * const participant,
   dds_Publisher * const pub,
   const rosidl_message_type_support_t * type_supports,
@@ -166,16 +168,9 @@ __rmw_create_publisher(
   publisher_info->sequence_number = 0;
   publisher_info->ctx = ctx;
 
-  static_assert(
-    sizeof(GurumddsPublisherGID) <= RMW_GID_STORAGE_SIZE,
-    "RMW_GID_STORAGE_SIZE insufficient to store the rmw_gurumdds_cpp GID implementation.");
-  memset(publisher_info->publisher_gid.data, 0, RMW_GID_STORAGE_SIZE);
-  {
-    auto publisher_gid =
-      reinterpret_cast<GurumddsPublisherGID *>(publisher_info->publisher_gid.data);
-    dds_DataWriter_get_guid(topic_writer, publisher_gid->publication_handle);
-  }
-  publisher_info->publisher_gid.implementation_identifier = RMW_GURUMDDS_ID;
+  entity_get_gid(
+    reinterpret_cast<dds_Entity *>(publisher_info->topic_writer),
+    publisher_info->publisher_gid);
 
   rmw_publisher = rmw_publisher_allocate();
   if (rmw_publisher == nullptr) {
@@ -333,6 +328,7 @@ rmw_create_publisher(
   rmw_publisher_t * const rmw_pub =
     __rmw_create_publisher(
       ctx,
+      node,
       ctx->participant,
       ctx->publisher,
       type_supports,
@@ -619,10 +615,8 @@ rmw_publish(
   dds_SampleInfoEx sampleinfo_ex;
   memset(&sampleinfo_ex, 0, sizeof(dds_SampleInfoEx));
   ros_sn_to_dds_sn(++publisher_info->sequence_number, &sampleinfo_ex.seq);
-  auto publisher_gid =
-    reinterpret_cast<GurumddsPublisherGID *>(publisher_info->publisher_gid.data);
   ros_guid_to_dds_guid(
-    reinterpret_cast<int8_t *>(publisher_gid->publication_handle),
+    reinterpret_cast<int8_t *>(publisher_info->publisher_gid.data),
     reinterpret_cast<int8_t *>(&sampleinfo_ex.src_guid));
 
   dds_ReturnCode_t ret = dds_DataWriter_raw_write_w_sampleinfoex(
@@ -679,10 +673,8 @@ rmw_publish_serialized_message(
   dds_SampleInfoEx sampleinfo_ex;
   memset(&sampleinfo_ex, 0, sizeof(dds_SampleInfoEx));
   ros_sn_to_dds_sn(++publisher_info->sequence_number, &sampleinfo_ex.seq);
-  auto publisher_gid =
-    reinterpret_cast<GurumddsPublisherGID *>(publisher_info->publisher_gid.data);
   ros_guid_to_dds_guid(
-    reinterpret_cast<int8_t *>(publisher_gid->publication_handle),
+    reinterpret_cast<int8_t *>(publisher_info->publisher_gid.data),
     reinterpret_cast<int8_t *>(&sampleinfo_ex.src_guid));
 
   dds_ReturnCode_t ret = dds_DataWriter_raw_write_w_sampleinfoex(

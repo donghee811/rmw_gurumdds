@@ -23,6 +23,7 @@
 rmw_publisher_t *
 __rmw_create_publisher(
   rmw_context_impl_t * const ctx,
+  const rmw_node_t * node,
   dds_DomainParticipant * const participant,
   dds_Publisher * const pub,
   const rosidl_message_type_support_t * type_supports,

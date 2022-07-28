@@ -33,15 +33,14 @@ void guid_to_gid(const dds_GUID_t & guid, rmw_gid_t & gid)
     RMW_GID_STORAGE_SIZE >= sizeof(guid),
     "rmw_gid_t type too small for an dds GUID");
   memset(&gid, 0, sizeof(gid));
-  memcpy(gid.data, static_cast<const void *>(&guid), sizeof(guid));
+  memcpy(gid.data, reinterpret_cast<const void *>(&guid), sizeof(guid));
   gid.implementation_identifier = RMW_GURUMDDS_ID;
 }
 
-template<typename T>
-void entity_get_gid(T * const entity, rmw_gid_t & gid)
+void entity_get_gid(dds_Entity * const entity, rmw_gid_t & gid)
 {
   dds_GUID_t dds_guid;
-  if (dds_Entity_get_guid(reinterpret_cast<dds_Entity *>(entity), &dds_guid) == dds_RETCODE_OK) {
+  if (dds_Entity_get_guid(entity, &dds_guid) == dds_RETCODE_OK) {
     guid_to_gid(dds_guid, gid);
   }
 }

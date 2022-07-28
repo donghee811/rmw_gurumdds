@@ -23,6 +23,7 @@
 rmw_subscription_t *
 __rmw_create_subscription(
   rmw_context_impl_t * const ctx,
+  const rmw_node_t * node,
   dds_DomainParticipant * const participant,
   dds_Subscriber * const sub,
   const rosidl_message_type_support_t * type_supports,

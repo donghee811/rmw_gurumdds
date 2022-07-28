@@ -27,6 +27,7 @@
 #include "rmw/serialized_message.h"
 #include "rmw/validate_full_topic_name.h"
 
+#include "rmw_gurumdds_cpp/gid.hpp"
 #include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
 #include "rmw_gurumdds_cpp/guid.hpp"
@@ -40,6 +41,7 @@
 rmw_subscription_t *
 __rmw_create_subscription(
   rmw_context_impl_t * const ctx,
+  const rmw_node_t * node,
   dds_DomainParticipant * const participant,
   dds_Subscriber * const sub,
   const rosidl_message_type_support_t * type_supports,
@@ -72,7 +74,6 @@ __rmw_create_subscription(
   dds_ReadCondition * read_condition = nullptr;
   dds_TypeSupport * dds_typesupport = nullptr;
   dds_ReturnCode_t ret;
-  rmw_ret_t rmw_ret;
 
   std::string type_name =
     create_type_name(type_support->data, type_support->typesupport_identifier);
@@ -174,6 +175,10 @@ __rmw_create_subscription(
   subscriber_info->implementation_identifier = RMW_GURUMDDS_ID;
   subscriber_info->ctx = ctx;
 
+  entity_get_gid(
+    reinterpret_cast<dds_Entity *>(subscriber_info->topic_reader),
+    subscriber_info->subscriber_gid);
+
   rmw_subscription = rmw_subscription_allocate();
   if (rmw_subscription == nullptr) {
     RMW_SET_ERROR_MSG("failed to allocate subscription");
@@ -234,7 +239,7 @@ __rmw_destroy_subscription(
 
   dds_ReturnCode_t ret;
   if (subscriber_info->topic_reader != nullptr) {
-    dds_Topic * topic = dds_DataReader_get_topicdescription(subscriber_info->topic_reader);
+    dds_Topic * topic = reinterpret_cast<dds_Topic *>(dds_DataReader_get_topicdescription(subscriber_info->topic_reader));
     ret = dds_Subscriber_delete_datareader(ctx->subscriber, subscriber_info->topic_reader);
     if (ret != dds_RETCODE_OK) {
       RMW_SET_ERROR_MSG("failed to delete datareader");
@@ -375,14 +380,13 @@ _take(
       rmw_gid_t * sender_gid = &message_info->publisher_gid;
       sender_gid->implementation_identifier = identifier;
       memset(sender_gid->data, 0, RMW_GID_STORAGE_SIZE);
-      auto custom_gid = reinterpret_cast<GurumddsPublisherGID *>(sender_gid->data);
       dds_ReturnCode_t ret = dds_DataReader_get_guid_from_publication_handle(
-        topic_reader, sample_info->publication_handle, custom_gid->publication_handle);
+        topic_reader, sample_info->publication_handle, sender_gid->data);
       if (ret != dds_RETCODE_OK) {
         if (ret == dds_RETCODE_ERROR) {
           RCUTILS_LOG_WARN_NAMED(RMW_GURUMDDS_ID, "Failed to get publication handle");
         }
-        memset(custom_gid->publication_handle, 0, sizeof(custom_gid->publication_handle));
+        memset(sender_gid->data, 0, RMW_GID_STORAGE_SIZE);
       }
     }
   }
@@ -514,14 +518,13 @@ _take_serialized(
       rmw_gid_t * sender_gid = &message_info->publisher_gid;
       sender_gid->implementation_identifier = identifier;
       memset(sender_gid->data, 0, RMW_GID_STORAGE_SIZE);
-      auto custom_gid = reinterpret_cast<GurumddsPublisherGID *>(sender_gid->data);
       dds_ReturnCode_t ret = dds_DataReader_get_guid_from_publication_handle(
-        topic_reader, sample_info->publication_handle, custom_gid->publication_handle);
+        topic_reader, sample_info->publication_handle, sender_gid->data);
       if (ret != dds_RETCODE_OK) {
         if (ret == dds_RETCODE_ERROR) {
           RCUTILS_LOG_WARN_NAMED("rmw_gurumdds_cpp", "Failed to get publication handle");
         }
-        memset(custom_gid->publication_handle, 0, sizeof(custom_gid->publication_handle));
+        memset(sender_gid->data, 0, RMW_GID_STORAGE_SIZE);
       }
     }
   }
@@ -608,6 +611,7 @@ rmw_create_subscription(
   rmw_subscription_t * const rmw_sub =
     __rmw_create_subscription(
       ctx,
+      node,
       ctx->participant,
       ctx->subscriber,
       type_supports,
@@ -944,14 +948,13 @@ rmw_take_sequence(
       rmw_gid_t * sender_gid = &message_info->publisher_gid;
       sender_gid->implementation_identifier = RMW_GURUMDDS_ID;
       memset(sender_gid->data, 0, RMW_GID_STORAGE_SIZE);
-      auto custom_gid = reinterpret_cast<GurumddsPublisherGID *>(sender_gid->data);
       dds_ReturnCode_t ret = dds_DataReader_get_guid_from_publication_handle(
-        topic_reader, sample_info->publication_handle, custom_gid->publication_handle);
+        topic_reader, sample_info->publication_handle, sender_gid->data);
       if (ret != dds_RETCODE_OK) {
         if (ret == dds_RETCODE_ERROR) {
           RCUTILS_LOG_WARN_NAMED(RMW_GURUMDDS_ID, "Failed to get publication handle");
         }
-        memset(custom_gid->publication_handle, 0, sizeof(custom_gid->publication_handle));
+        memset(sender_gid->data, 0, RMW_GID_STORAGE_SIZE);
       }
 
       (*taken)++;

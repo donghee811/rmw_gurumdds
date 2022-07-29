@@ -58,7 +58,8 @@ rmw_context_impl_t::initialize_node(
   }
 
   this->node_count++;
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "initialized new node, totla node=%lu", this->node_count);
+  RCUTILS_LOG_DEBUG_NAMED(
+    RMW_GURUMDDS_ID, "initialized new node, totla node=%lu", this->node_count);
   return RMW_RET_OK;
 }
 
@@ -303,7 +304,7 @@ rmw_context_impl_t::finalize()
     reinterpret_cast<void *>(this));
 
   dds_DomainParticipantFactory * factory = dds_DomainParticipantFactory_get_instance();
-  dds_InstanceHandleSeq* participants = dds_InstanceHandleSeq_create(4);
+  dds_InstanceHandleSeq * participants = dds_InstanceHandleSeq_create(4);
 
   auto scope_exit_seq = rcpputils::make_scope_exit(
     [&participants]()

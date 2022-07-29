@@ -213,7 +213,7 @@ part_on_data_available(rmw_context_impl_t * const ctx)
       dds_ANY_SAMPLE_STATE,
       dds_ANY_VIEW_STATE,
       dds_ANY_INSTANCE_STATE);
-  
+
     if (rc != dds_RETCODE_OK) {
       continue;
     }
@@ -305,7 +305,7 @@ pub_on_data_available(rmw_context_impl_t * const ctx)
       dds_ANY_SAMPLE_STATE,
       dds_ANY_VIEW_STATE,
       dds_ANY_INSTANCE_STATE);
-  
+
     if (rc != dds_RETCODE_OK) {
       continue;
     }
@@ -390,7 +390,7 @@ sub_on_data_available(rmw_context_impl_t * const ctx)
       dds_ANY_SAMPLE_STATE,
       dds_ANY_VIEW_STATE,
       dds_ANY_INSTANCE_STATE);
-  
+
     if (rc != dds_RETCODE_OK) {
       continue;
     }

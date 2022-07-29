@@ -63,7 +63,7 @@ rmw_get_topic_names_and_types(
     demangle_topic = _identity_demangle;
     demangle_type = _identity_demangle;
   }
-  
+
   auto common_ctx = &node->context->impl->common_ctx;
   return common_ctx->graph_cache.get_names_and_types(
     demangle_topic, demangle_type, allocator, topic_names_and_types);

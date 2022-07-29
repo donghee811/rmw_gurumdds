@@ -52,7 +52,7 @@ __rmw_create_publisher(
   const bool internal)
 {
   std::lock_guard<std::mutex> guard(ctx->endpoint_mutex);
-  
+
   const rosidl_message_type_support_t * type_support =
     get_message_typesupport_handle(type_supports, rosidl_typesupport_introspection_c__identifier);
   if (type_support == nullptr) {
@@ -300,7 +300,7 @@ rmw_create_publisher(
     return nullptr;
   }
   RMW_CHECK_ARGUMENT_FOR_NULL(qos_policies, nullptr);
-  RMW_CHECK_ARGUMENT_FOR_NULL(publisher_options, nullptr); 
+  RMW_CHECK_ARGUMENT_FOR_NULL(publisher_options, nullptr);
 
   if (!qos_policies->avoid_ros_namespace_conventions) {
     int validation_result = RMW_TOPIC_VALID;
@@ -327,15 +327,15 @@ rmw_create_publisher(
 
   rmw_publisher_t * const rmw_pub =
     __rmw_create_publisher(
-      ctx,
-      node,
-      ctx->participant,
-      ctx->publisher,
-      type_supports,
-      topic_name,
-      qos_policies,
-      publisher_options,
-      ctx->localhost_only);
+    ctx,
+    node,
+    ctx->participant,
+    ctx->publisher,
+    type_supports,
+    topic_name,
+    qos_policies,
+    publisher_options,
+    ctx->localhost_only);
 
   if (rmw_pub == nullptr) {
     RMW_SET_ERROR_MSG("failed to create RMW publisher");
@@ -447,14 +447,14 @@ rmw_destroy_publisher(rmw_node_t * node, rmw_publisher_t * publisher)
 {
   RMW_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    node handle,
+    node,
     node->implementation_identifier,
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
   RMW_CHECK_ARGUMENT_FOR_NULL(publisher, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    publisher handle,
+    publisher,
     publisher->implementation_identifier,
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
@@ -492,7 +492,7 @@ rmw_get_gid_for_publisher(const rmw_publisher_t * publisher, rmw_gid_t * gid)
   RMW_CHECK_ARGUMENT_FOR_NULL(publisher, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_ARGUMENT_FOR_NULL(gid, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    publisher handle,
+    publisher,
     publisher->implementation_identifier,
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
@@ -516,7 +516,7 @@ rmw_publisher_get_actual_qos(
   RMW_CHECK_ARGUMENT_FOR_NULL(publisher, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_ARGUMENT_FOR_NULL(qos, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    publisher handle,
+    publisher,
     publisher->implementation_identifier,
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
@@ -579,8 +579,8 @@ rmw_publish(
   dds_DataWriter * topic_writer = publisher_info->topic_writer;
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(topic_writer, RMW_RET_ERROR);
 
-  const rosidl_message_type_support_t * rosidl_typesupport
-    = publisher_info->rosidl_message_typesupport;
+  const rosidl_message_type_support_t * rosidl_typesupport =
+    publisher_info->rosidl_message_typesupport;
   if (rosidl_typesupport == nullptr) {
     RMW_SET_ERROR_MSG("rosidl typesupport handle is null");
     return RMW_RET_ERROR;

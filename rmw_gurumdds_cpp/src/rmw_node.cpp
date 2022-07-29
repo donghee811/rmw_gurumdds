@@ -150,7 +150,7 @@ __rmw_destroy_node(const char * implementation_identifier, rmw_node_t * node)
 {
   RMW_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    node_handle,
+    node,
     node->implementation_identifier, implementation_identifier,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
@@ -203,7 +203,7 @@ _get_node_names(
 {
   RMW_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    node_handle,
+    node,
     node->implementation_identifier, implementation_identifier,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
   if (rmw_check_zero_rmw_string_array(node_names) != RMW_RET_OK ||
@@ -260,7 +260,7 @@ rmw_create_node(
 {
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(context, nullptr);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    init context,
+    context,
     context->implementation_identifier,
     RMW_GURUMDDS_ID,
     return nullptr);

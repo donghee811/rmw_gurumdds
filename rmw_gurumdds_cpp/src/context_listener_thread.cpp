@@ -44,7 +44,7 @@ rmw_attach_reader_to_waitset(
 {
   dds_StatusCondition * const status_cond =
     dds_Entity_get_statuscondition(reinterpret_cast<dds_Entity *>(reader));
-  
+
   dds_Condition * const cond = reinterpret_cast<dds_Condition *>(status_cond);
 
   if (dds_RETCODE_OK !=
@@ -89,7 +89,7 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
 
   dds_GuardCondition * gcond_exit =
     reinterpret_cast<dds_GuardCondition *>(ctx->common_ctx.listener_thread_gc->data);
-  
+
   GurumddsWaitSetInfo * waitset_info = new(std::nothrow) GurumddsWaitSetInfo();
   if (waitset_info == nullptr) {
     RMW_SET_ERROR_MSG("failed to allocate WaitSetInfo");
@@ -224,10 +224,10 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
 
   RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] main loop terminated");
 
-  cleanup :
+cleanup:
   RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] cleaning up...");
   if (waitset_info != nullptr) {
-    if(waitset_info->active_conditions) {
+    if (waitset_info->active_conditions) {
       dds_ConditionSeq_delete(waitset_info->active_conditions);
     }
     if (waitset_info->wait_set != nullptr) {

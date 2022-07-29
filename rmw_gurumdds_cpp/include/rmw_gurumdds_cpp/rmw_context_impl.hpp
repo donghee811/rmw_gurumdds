@@ -59,6 +59,7 @@ struct rmw_context_impl_s
   dds_DataReader * builtin_subscription_datareader;
 
   bool localhost_only;
+  bool service_mapping_basic;
 
   /* Participant reference count */
   size_t node_count{0};

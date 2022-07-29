@@ -89,12 +89,12 @@ __add_entity(
     local);
 
   if (!ctx->common_ctx.graph_cache.add_entity(
-    gid,
-    std::string(topic_name),
-    std::string(type_name),
-    dp_gid,
-    qos_profile,
-    is_reader))
+      gid,
+      std::string(topic_name),
+      std::string(type_name),
+      dp_gid,
+      qos_profile,
+      is_reader))
   {
     RCUTILS_LOG_DEBUG_NAMED(
       RMW_GURUMDDS_ID,
@@ -149,7 +149,7 @@ __add_local_publisher(
     reinterpret_cast<const uint32_t *>(gid.data)[1],
     reinterpret_cast<const uint32_t *>(gid.data)[2],
     reinterpret_cast<const uint32_t *>(gid.data)[3]);
-  
+
   dds_DataWriterQos dw_qos;
   dds_DataWriterQos * dw_qos_ptr = &dw_qos;
   dds_GUID_t endp_guid;
@@ -177,8 +177,8 @@ __add_local_publisher(
     return RMW_RET_ERROR;
   }
 
-  dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(datawriter), &endp_guid);
-  dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(ctx->participant), &dp_guid);
+  dds_Entity_get_guid(reinterpret_cast<dds_Entity *>(datawriter), &endp_guid);
+  dds_Entity_get_guid(reinterpret_cast<dds_Entity *>(ctx->participant), &dp_guid);
 
   return __add_entity(
     ctx,
@@ -219,12 +219,13 @@ __add_local_subscriber(
     reinterpret_cast<const uint32_t *>(gid.data)[1],
     reinterpret_cast<const uint32_t *>(gid.data)[2],
     reinterpret_cast<const uint32_t *>(gid.data)[3]);
-  
+
   dds_DataReaderQos dr_qos;
   dds_DataReaderQos * dr_qos_ptr = &dr_qos;
   dds_GUID_t endp_guid;
   dds_GUID_t dp_guid;
-  dds_Topic * topic = reinterpret_cast<dds_Topic *>(dds_DataReader_get_topicdescription(datareader));
+  dds_Topic * topic =
+    reinterpret_cast<dds_Topic *>(dds_DataReader_get_topicdescription(datareader));
   const char * topic_name = dds_Topic_get_name(topic);
   const char * type_name = dds_Topic_get_type_name(topic);
 
@@ -247,8 +248,8 @@ __add_local_subscriber(
     return RMW_RET_ERROR;
   }
 
-  dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(datareader), &endp_guid);
-  dds_Entity_get_guid(reinterpret_cast<dds_Entity*>(ctx->participant), &dp_guid);
+  dds_Entity_get_guid(reinterpret_cast<dds_Entity *>(datareader), &endp_guid);
+  dds_Entity_get_guid(reinterpret_cast<dds_Entity *>(ctx->participant), &dp_guid);
 
   return __add_entity(
     ctx,
@@ -653,7 +654,7 @@ graph_on_service_created(
     node->name,
     node->namespace_);
 
-  if (graph_publish_update(ctx, reinterpret_cast<void*>(&msg)) != RMW_RET_OK) {
+  if (graph_publish_update(ctx, reinterpret_cast<void *>(&msg)) != RMW_RET_OK) {
     ctx->common_ctx.graph_cache.dissociate_writer(
       pub_gid,
       ctx->common_ctx.gid,
@@ -758,7 +759,7 @@ graph_on_client_created(
     node->name,
     node->namespace_);
 
-  if (graph_publish_update(ctx, reinterpret_cast<void*>(&msg)) != RMW_RET_OK) {
+  if (graph_publish_update(ctx, reinterpret_cast<void *>(&msg)) != RMW_RET_OK) {
     ctx->common_ctx.graph_cache.dissociate_writer(
       pub_gid,
       ctx->common_ctx.gid,
@@ -918,19 +919,19 @@ graph_add_remote_entity(
   }
 
   if (RMW_RET_OK != __add_entity(
-    ctx,
-    endp_guid,
-    dp_guid,
-    topic_name,
-    type_name,
-    nullptr,
-    reliability,
-    durability,
-    deadline,
-    liveliness,
-    lifespan,
-    is_reader,
-    false))
+      ctx,
+      endp_guid,
+      dp_guid,
+      topic_name,
+      type_name,
+      nullptr,
+      reliability,
+      durability,
+      deadline,
+      liveliness,
+      lifespan,
+      is_reader,
+      false))
   {
     return RMW_RET_ERROR;
   }

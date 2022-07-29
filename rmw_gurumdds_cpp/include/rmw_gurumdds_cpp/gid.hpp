@@ -27,6 +27,7 @@
 #include "rmw_gurumdds_cpp/dds_include.hpp"
 #include "rmw_gurumdds_cpp/identifier.hpp"
 
+inline
 void guid_to_gid(const dds_GUID_t & guid, rmw_gid_t & gid)
 {
   static_assert(
@@ -37,6 +38,7 @@ void guid_to_gid(const dds_GUID_t & guid, rmw_gid_t & gid)
   gid.implementation_identifier = RMW_GURUMDDS_ID;
 }
 
+inline
 void entity_get_gid(dds_Entity * const entity, rmw_gid_t & gid)
 {
   dds_GUID_t dds_guid;

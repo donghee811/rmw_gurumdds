@@ -51,7 +51,7 @@ __rmw_create_subscription(
   const bool internal)
 {
   std::lock_guard<std::mutex> guard(ctx->endpoint_mutex);
-  
+
   const rosidl_message_type_support_t * type_support =
     get_message_typesupport_handle(type_supports, rosidl_typesupport_introspection_c__identifier);
   if (type_support == nullptr) {
@@ -196,8 +196,8 @@ __rmw_create_subscription(
 
   rmw_subscription->implementation_identifier = RMW_GURUMDDS_ID;
   rmw_subscription->data = subscriber_info;
-  rmw_subscription->topic_name
-    = reinterpret_cast<const char *>(rmw_allocate(strlen(topic_name) + 1));
+  rmw_subscription->topic_name =
+    reinterpret_cast<const char *>(rmw_allocate(strlen(topic_name) + 1));
   if (rmw_subscription->topic_name == nullptr) {
     RMW_SET_ERROR_MSG("failed to allocate memory for topic name");
     return nullptr;
@@ -239,7 +239,9 @@ __rmw_destroy_subscription(
 
   dds_ReturnCode_t ret;
   if (subscriber_info->topic_reader != nullptr) {
-    dds_Topic * topic = reinterpret_cast<dds_Topic *>(dds_DataReader_get_topicdescription(subscriber_info->topic_reader));
+    dds_Topic * topic =
+      reinterpret_cast<dds_Topic *>(dds_DataReader_get_topicdescription(
+        subscriber_info->topic_reader));
     ret = dds_Subscriber_delete_datareader(ctx->subscriber, subscriber_info->topic_reader);
     if (ret != dds_RETCODE_OK) {
       RMW_SET_ERROR_MSG("failed to delete datareader");
@@ -274,7 +276,7 @@ _take(
   *taken = false;
 
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    subscription handle,
+    subscription,
     subscription->implementation_identifier,
     identifier,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
@@ -412,7 +414,7 @@ _take_serialized(
   *taken = false;
 
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    subscription handle,
+    subscription,
     subscription->implementation_identifier,
     identifier,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
@@ -583,7 +585,7 @@ rmw_create_subscription(
     return nullptr;
   }
   RMW_CHECK_ARGUMENT_FOR_NULL(qos_policies, nullptr);
-  RMW_CHECK_ARGUMENT_FOR_NULL(subscription_options, nullptr); 
+  RMW_CHECK_ARGUMENT_FOR_NULL(subscription_options, nullptr);
 
   if (!qos_policies->avoid_ros_namespace_conventions) {
     int validation_result = RMW_TOPIC_VALID;
@@ -610,15 +612,15 @@ rmw_create_subscription(
 
   rmw_subscription_t * const rmw_sub =
     __rmw_create_subscription(
-      ctx,
-      node,
-      ctx->participant,
-      ctx->subscriber,
-      type_supports,
-      topic_name,
-      qos_policies,
-      subscription_options,
-      ctx->localhost_only);
+    ctx,
+    node,
+    ctx->participant,
+    ctx->subscriber,
+    type_supports,
+    topic_name,
+    qos_policies,
+    subscription_options,
+    ctx->localhost_only);
 
   if (rmw_sub == nullptr) {
     RMW_SET_ERROR_MSG("failed to create RMW subscription");
@@ -681,7 +683,7 @@ rmw_subscription_get_actual_qos(
   RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_ARGUMENT_FOR_NULL(qos, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    subscription handle,
+    subscription,
     subscription->implementation_identifier,
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
@@ -726,14 +728,14 @@ rmw_destroy_subscription(rmw_node_t * node, rmw_subscription_t * subscription)
 {
   RMW_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    node handle,
+    node,
     node->implementation_identifier,
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
   RMW_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    subscription handle,
+    subscription,
     subscription->implementation_identifier,
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
@@ -824,7 +826,7 @@ rmw_take_sequence(
     taken, "taken handle is null", return RMW_RET_INVALID_ARGUMENT);
 
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    subscription handle,
+    subscription,
     subscription->implementation_identifier,
     RMW_GURUMDDS_ID,
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);

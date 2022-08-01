@@ -872,4 +872,18 @@ rmw_send_response(
 
   return RMW_RET_OK;
 }
+
+rmw_ret_t
+rmw_service_set_on_new_request_callback(
+  rmw_service_t * rmw_service,
+  rmw_event_callback_t callback,
+  const void * user_data)
+{
+  (void)rmw_service;
+  (void)callback;
+  (void)user_data;
+
+  RMW_SET_ERROR_MSG("rmw_service_set_on_new_request_callback not implemented");
+  return RMW_RET_UNSUPPORTED;
+}
 }  // extern "C"

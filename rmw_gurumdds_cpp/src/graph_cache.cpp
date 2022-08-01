@@ -51,14 +51,14 @@ __add_entity(
   guid_to_gid(*dp_guid, dp_gid);
 
   rmw_qos_profile_t qos_profile = {
-    convert_history(*history),
+    convert_history(history),
     static_cast<size_t>(history->depth),
-    convert_reliability(*reliability),
-    convert_durability(*durability),
-    convert_deadline(*deadline),
-    convert_lifespan(*lifespan),
-    convert_liveliness(*liveliness),
-    convert_liveliness_lease_duration(*liveliness),
+    convert_reliability(reliability),
+    convert_durability(durability),
+    convert_deadline(deadline),
+    convert_lifespan(lifespan),
+    convert_liveliness(liveliness),
+    convert_liveliness_lease_duration(liveliness),
     false,
   };
 

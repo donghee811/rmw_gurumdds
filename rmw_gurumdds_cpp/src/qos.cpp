@@ -176,9 +176,9 @@ bool get_datareader_qos(
 
 rmw_qos_history_policy_t
 convert_history(
-  dds_HistoryQosPolicy policy)
+  const dds_HistoryQosPolicy * const policy)
 {
-  switch (policy.kind) {
+  switch (policy->kind) {
     case dds_KEEP_LAST_HISTORY_QOS:
       return RMW_QOS_POLICY_HISTORY_KEEP_LAST;
     case dds_KEEP_ALL_HISTORY_QOS:
@@ -190,9 +190,9 @@ convert_history(
 
 rmw_qos_reliability_policy_t
 convert_reliability(
-  dds_ReliabilityQosPolicy policy)
+  const dds_ReliabilityQosPolicy * const policy)
 {
-  switch (policy.kind) {
+  switch (policy->kind) {
     case dds_BEST_EFFORT_RELIABILITY_QOS:
       return RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
     case dds_RELIABLE_RELIABILITY_QOS:
@@ -204,9 +204,9 @@ convert_reliability(
 
 rmw_qos_durability_policy_t
 convert_durability(
-  dds_DurabilityQosPolicy policy)
+  const dds_DurabilityQosPolicy * const policy)
 {
-  switch (policy.kind) {
+  switch (policy->kind) {
     case dds_VOLATILE_DURABILITY_QOS:
       return RMW_QOS_POLICY_DURABILITY_VOLATILE;
     case dds_TRANSIENT_LOCAL_DURABILITY_QOS:
@@ -218,23 +218,24 @@ convert_durability(
 
 rmw_time_t
 convert_deadline(
-  dds_DeadlineQosPolicy policy)
+  const dds_DeadlineQosPolicy * const policy)
 {
-  return dds_duration_to_rmw(policy.period);
+  return dds_duration_to_rmw(policy->period);
 }
 
 rmw_time_t
 convert_lifespan(
-  dds_LifespanQosPolicy policy)
+  const dds_LifespanQosPolicy * const policy)
 {
-  return dds_duration_to_rmw(policy.duration);
+  rmw_time_t time = RMW_DURATION_INFINITE;
+  return policy == nullptr ? time : dds_duration_to_rmw(policy->duration);
 }
 
 rmw_qos_liveliness_policy_t
 convert_liveliness(
-  dds_LivelinessQosPolicy policy)
+  const dds_LivelinessQosPolicy * const policy)
 {
-  switch (policy.kind) {
+  switch (policy->kind) {
     case dds_AUTOMATIC_LIVELINESS_QOS:
       return RMW_QOS_POLICY_LIVELINESS_AUTOMATIC;
     case dds_MANUAL_BY_TOPIC_LIVELINESS_QOS:
@@ -246,9 +247,9 @@ convert_liveliness(
 
 rmw_time_t
 convert_liveliness_lease_duration(
-  dds_LivelinessQosPolicy policy)
+  const dds_LivelinessQosPolicy * const policy)
 {
-  return dds_duration_to_rmw(policy.lease_duration);
+  return dds_duration_to_rmw(policy->lease_duration);
 }
 
 rmw_qos_policy_kind_t

@@ -584,13 +584,13 @@ rmw_client_request_publisher_get_actual_qos(
     return RMW_RET_ERROR;
   }
 
-  qos->reliability = convert_reliability(dds_qos.reliability);
-  qos->durability = convert_durability(dds_qos.durability);
-  qos->deadline = convert_deadline(dds_qos.deadline);
-  qos->lifespan = convert_lifespan(dds_qos.lifespan);
-  qos->liveliness = convert_liveliness(dds_qos.liveliness);
-  qos->liveliness_lease_duration = convert_liveliness_lease_duration(dds_qos.liveliness);
-  qos->history = convert_history(dds_qos.history);
+  qos->reliability = convert_reliability(&dds_qos.reliability);
+  qos->durability = convert_durability(&dds_qos.durability);
+  qos->deadline = convert_deadline(&dds_qos.deadline);
+  qos->lifespan = convert_lifespan(&dds_qos.lifespan);
+  qos->liveliness = convert_liveliness(&dds_qos.liveliness);
+  qos->liveliness_lease_duration = convert_liveliness_lease_duration(&dds_qos.liveliness);
+  qos->history = convert_history(&dds_qos.history);
   qos->depth = static_cast<size_t>(dds_qos.history.depth);
 
   ret = dds_DataWriterQos_finalize(&dds_qos);
@@ -634,12 +634,12 @@ rmw_client_response_subscription_get_actual_qos(
     return RMW_RET_ERROR;
   }
 
-  qos->reliability = convert_reliability(dds_qos.reliability);
-  qos->durability = convert_durability(dds_qos.durability);
-  qos->deadline = convert_deadline(dds_qos.deadline);
-  qos->liveliness = convert_liveliness(dds_qos.liveliness);
-  qos->liveliness_lease_duration = convert_liveliness_lease_duration(dds_qos.liveliness);
-  qos->history = convert_history(dds_qos.history);
+  qos->reliability = convert_reliability(&dds_qos.reliability);
+  qos->durability = convert_durability(&dds_qos.durability);
+  qos->deadline = convert_deadline(&dds_qos.deadline);
+  qos->liveliness = convert_liveliness(&dds_qos.liveliness);
+  qos->liveliness_lease_duration = convert_liveliness_lease_duration(&dds_qos.liveliness);
+  qos->history = convert_history(&dds_qos.history);
   qos->depth = static_cast<size_t>(dds_qos.history.depth);
 
   ret = dds_DataReaderQos_finalize(&dds_qos);

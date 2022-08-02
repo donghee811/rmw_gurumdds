@@ -43,16 +43,6 @@ pub_on_data_available(rmw_context_impl_t * const ctx);
 rmw_ret_t
 sub_on_data_available(rmw_context_impl_t * const ctx);
 
-typedef struct _GurumddsNodeInfo
-{
-  rmw_context_impl_t * ctx;
-
-  explicit _GurumddsNodeInfo(rmw_context_impl_t * const ctx)
-  {
-    this->ctx = ctx;
-  }
-} GurumddsNodeInfo;
-
 typedef struct _GurumddsWaitSetInfo
 {
   dds_WaitSet * wait_set;

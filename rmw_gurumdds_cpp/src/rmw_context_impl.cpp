@@ -265,13 +265,6 @@ rmw_context_impl_t::finalize_participant()
 
   /* Delete DomainParticipant */
   if (this->participant != nullptr) {
-    if (dds_RETCODE_OK !=
-      dds_DomainParticipant_delete_contained_entities(this->participant))
-    {
-      RMW_SET_ERROR_MSG("failed to delete DomainParticipant's entities");
-      return RMW_RET_ERROR;
-    }
-
     dds_DomainParticipantFactory * factory = dds_DomainParticipantFactory_get_instance();
     if (factory == nullptr) {
       RMW_SET_ERROR_MSG("failed to get domain participant factory");
@@ -322,12 +315,6 @@ rmw_context_impl_t::finalize()
   for (uint32_t i = 0; i < dds_InstanceHandleSeq_length(participants); i++) {
     dds_DomainParticipant * participant =
       reinterpret_cast<dds_DomainParticipant *>(dds_InstanceHandleSeq_get(participants, i));
-    if (dds_RETCODE_OK !=
-      dds_DomainParticipant_delete_contained_entities(participant))
-    {
-      RMW_SET_ERROR_MSG("failed to delete DomainParticipant's entities");
-      return RMW_RET_ERROR;
-    }
     if (dds_RETCODE_OK !=
       dds_DomainParticipantFactory_delete_participant(factory, participant))
     {

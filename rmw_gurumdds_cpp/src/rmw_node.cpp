@@ -90,12 +90,6 @@ __rmw_create_node(
     return nullptr;
   }
 
-  GurumddsNodeInfo * const node_info = new (std::nothrow) GurumddsNodeInfo(ctx);
-  if (node_info == nullptr) {
-    RMW_SET_ERROR_MSG("failed to allocate GurumddsNodeInfo");
-    return nullptr;
-  }
-
   rmw_node_t * node_handle = rmw_node_allocate();
   if (node_handle == nullptr) {
     RMW_SET_ERROR_MSG("failed to allocate memory for node handle");
@@ -129,7 +123,7 @@ __rmw_create_node(
   memcpy(const_cast<char *>(node_handle->namespace_), namespace_, strlen(namespace_) + 1);
 
   node_handle->implementation_identifier = implementation_identifier;
-  node_handle->data = node_info;
+  node_handle->data = nullptr;
   node_handle->context = context;
 
   if (graph_on_node_created(ctx, node_handle) != RMW_RET_OK) {
@@ -157,9 +151,6 @@ __rmw_destroy_node(const char * implementation_identifier, rmw_node_t * node)
   rmw_context_impl_t * ctx = node->context->impl;
   std::lock_guard<std::mutex> guard(ctx->initialization_mutex);
 
-  GurumddsNodeInfo * const node_info =
-    reinterpret_cast<GurumddsNodeInfo *>(node->data);
-
   if (graph_on_node_deleted(ctx, node) != RMW_RET_OK) {
     RMW_SET_ERROR_MSG("failed to update for node delete");
     return RMW_RET_ERROR;
@@ -172,7 +163,6 @@ __rmw_destroy_node(const char * implementation_identifier, rmw_node_t * node)
   rmw_free(const_cast<char *>(node->name));
   rmw_free(const_cast<char *>(node->namespace_));
   rmw_node_free(node);
-  delete node_info;
 
   if (ctx->finalize_node() != RMW_RET_OK) {
     RMW_SET_ERROR_MSG("failed to finalize node");

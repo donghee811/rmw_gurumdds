@@ -198,7 +198,7 @@ __rmw_create_publisher(
   memcpy(
     const_cast<char *>(rmw_publisher->topic_name),
     topic_name,
-    strlen(topic_name + 1));
+    strlen(topic_name) + 1);
   rmw_publisher->options = *publisher_options;
   rmw_publisher->can_loan_messages = false;
 

@@ -360,6 +360,6 @@ stop_listener_thread(rmw_context_t * ctx)
     }
   }
 
-  RMW_SET_ERROR_MSG("discovery thread stopped");
+  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "discovery thread stopped");
   return RMW_RET_OK;
 }

@@ -42,20 +42,13 @@ rmw_attach_reader_to_waitset(
   dds_DataReader * const reader,
   dds_WaitSet * const waitset)
 {
-  dds_StatusCondition * const status_cond =
-    dds_Entity_get_statuscondition(reinterpret_cast<dds_Entity *>(reader));
+  dds_ReadCondition * const read_cond = dds_DataReader_create_readcondition(
+    reader, dds_ANY_SAMPLE_STATE, dds_ANY_VIEW_STATE, dds_ANY_INSTANCE_STATE);
 
-  dds_Condition * const cond = reinterpret_cast<dds_Condition *>(status_cond);
-
-  if (dds_RETCODE_OK !=
-    dds_StatusCondition_set_enabled_statuses(status_cond, dds_DATA_AVAILABLE_STATUS))
-  {
-    RMW_SET_ERROR_MSG("failed to set datareader condition mask");
-    return nullptr;
-  }
+  dds_Condition * const cond = reinterpret_cast<dds_Condition *>(read_cond);
 
   if (dds_RETCODE_OK != dds_WaitSet_attach_condition(waitset, cond)) {
-    RMW_SET_ERROR_MSG("failed to attach status condition to waitset");
+    RMW_SET_ERROR_MSG("failed to attach read condition to waitset");
     return nullptr;
   }
 
@@ -83,6 +76,7 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
   bool attached_dcps_sub = false;
 
   dds_Condition * cond_active = nullptr;
+  dds_Condition * cond_part_info = nullptr;
   dds_Condition * cond_dcps_part = nullptr;
   dds_Condition * cond_dcps_pub = nullptr;
   dds_Condition * cond_dcps_sub = nullptr;
@@ -132,26 +126,37 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
     attached_condition_count += 1;
   }
 
-  if (dds_RETCODE_OK !=
-    dds_StatusCondition_set_enabled_statuses(
-      sub_partinfo->get_statuscondition(), dds_DATA_AVAILABLE_STATUS))
-  {
-    RMW_SET_ERROR_MSG("failed to enable statuses on participant info condition");
-    goto cleanup;
-  }
+  //if (dds_RETCODE_OK !=
+  //  dds_StatusCondition_set_enabled_statuses(
+  //    sub_partinfo->get_statuscondition(), dds_DATA_AVAILABLE_STATUS))
+  //{
+  //  RMW_SET_ERROR_MSG("failed to enable statuses on participant info condition");
+  //  goto cleanup;
+  //}
 
-  if (dds_RETCODE_OK !=
-    dds_WaitSet_attach_condition(
-      waitset_info->wait_set,
-      reinterpret_cast<dds_Condition *>(sub_partinfo->get_statuscondition())))
-  {
-    RMW_SET_ERROR_MSG(
-      "failed to attach participant info condition to "
-      "discovery thread waitset");
-    goto cleanup;
+  //if (dds_RETCODE_OK !=
+  //  dds_WaitSet_attach_condition(
+  //    waitset_info->wait_set,
+  //    reinterpret_cast<dds_Condition *>(sub_partinfo->get_statuscondition())))
+  //{
+  //  RMW_SET_ERROR_MSG(
+  //    "failed to attach participant info condition to "
+  //    "discovery thread waitset");
+  //  goto cleanup;
+  //}
+
+  //attached_partinfo = true;
+  //attached_condition_count += 1;
+
+  if (sub_partinfo->topic_reader != nullptr) {
+    cond_part_info =
+      rmw_attach_reader_to_waitset(sub_partinfo->topic_reader, waitset_info->wait_set);
+    if (cond_part_info == nullptr) {
+      goto cleanup;
+    }
+    attached_partinfo = true;
+    attached_condition_count += 1;
   }
-  attached_partinfo = true;
-  attached_condition_count += 1;
 
   if (RMW_RET_OK !=
     dds_WaitSet_attach_condition(
@@ -201,7 +206,7 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
 
     for (uint32_t i = 0; i < active_len && active; i++) {
       cond_active = dds_ConditionSeq_get(waitset_info->active_conditions, i);
-      if (cond_active == reinterpret_cast<dds_Condition *>(sub_partinfo->get_statuscondition())) {
+      if (nullptr != cond_part_info && cond_part_info == cond_active) {
         RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] participnat-info active");
         graph_on_participant_info(ctx);
       } else if (nullptr != cond_dcps_part && cond_dcps_part == cond_active) {
@@ -247,13 +252,15 @@ cleanup:
         if (dds_RETCODE_OK !=
           dds_WaitSet_detach_condition(
             waitset_info->wait_set,
-            reinterpret_cast<dds_Condition *>(sub_partinfo->get_statuscondition())))
+            cond_part_info))
         {
           RMW_SET_ERROR_MSG(
             "failed to detach participant info condition from "
             "discovery thread waitset");
           return;
         }
+        dds_DataReader_delete_readcondition(
+          sub_partinfo->topic_reader, reinterpret_cast<dds_ReadCondition *>(cond_part_info));
       }
       if (attached_dcps_part) {
         if (dds_RETCODE_OK !=
@@ -266,6 +273,8 @@ cleanup:
             "discovery thread waitset");
           return;
         }
+        dds_DataReader_delete_readcondition(
+          ctx->builtin_participant_datareader, reinterpret_cast<dds_ReadCondition *>(cond_dcps_part));
       }
       if (attached_dcps_pub) {
         if (dds_RETCODE_OK !=
@@ -278,6 +287,8 @@ cleanup:
             "discovery thread waitset");
           return;
         }
+        dds_DataReader_delete_readcondition(
+          ctx->builtin_publication_datareader, reinterpret_cast<dds_ReadCondition *>(cond_dcps_pub));
       }
       if (attached_dcps_sub) {
         if (dds_RETCODE_OK !=
@@ -290,6 +301,8 @@ cleanup:
             "discovery thread waitset");
           return;
         }
+        dds_DataReader_delete_readcondition(
+          ctx->builtin_subscription_datareader, reinterpret_cast<dds_ReadCondition *>(cond_dcps_sub));
       }
       dds_WaitSet_delete(waitset_info->wait_set);
     }
@@ -316,7 +329,7 @@ run_listener_thread(rmw_context_t * ctx)
 
   try {
     common_ctx->listener_thread = std::thread(rmw_gurumdds_discovery_thread, ctx->impl);
-    RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "discovery thread started");
+    RCUTILS_LOG_INFO_NAMED(RMW_GURUMDDS_ID, "discovery thread started");
     return RMW_RET_OK;
   } catch (const std::exception & exc) {
     RMW_SET_ERROR_MSG_WITH_FORMAT_STRING("Failed to create std::thread: %s", exc.what());

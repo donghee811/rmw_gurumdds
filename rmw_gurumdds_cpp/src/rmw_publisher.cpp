@@ -192,7 +192,7 @@ __rmw_create_publisher(
   rmw_publisher->topic_name =
     reinterpret_cast<const char *>(rmw_allocate(strlen(topic_name) + 1));
   if (rmw_publisher->topic_name == nullptr) {
-    RMW_SET_ERROR_MSG("failed to allocate publisher's topic name");
+    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "failed to allocate publisher's topic name");
     return nullptr;
   }
   memcpy(
@@ -204,7 +204,7 @@ __rmw_create_publisher(
 
   if (!internal) {
     if (graph_on_publisher_created(ctx, node, publisher_info) != RMW_RET_OK) {
-      RMW_SET_ERROR_MSG("failed to update graph for publisher");
+      RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "failed to update graph for publisher");
       return nullptr;
     }
   }

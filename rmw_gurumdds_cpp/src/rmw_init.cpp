@@ -238,12 +238,22 @@ rmw_context_fini(rmw_context_t * context)
     return RMW_RET_INVALID_ARGUMENT;
   }
 
-  rmw_ret_t ret = rmw_init_options_fini(&context->options);
+  rmw_ret_t ret_exit = RMW_RET_OK;
+  rmw_ret_t ret = context->impl->finalize();
+  if (ret != RMW_RET_OK) {
+    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "failed to finalize context impl");
+    ret_exit = ret;
+  }
 
-  context->impl->finalize();
-  delete context->impl;
+  ret = rmw_init_options_fini(&context->options);
+  if (ret != RMW_RET_OK) {
+    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "failed to finalize rmw context options");
+    ret_exit = ret;
+  }
+
+  // delete context->impl;
   *context = rmw_get_zero_initialized_context();
 
-  return ret;
+  return ret_exit;
 }
 }  // extern "C"

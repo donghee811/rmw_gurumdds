@@ -55,6 +55,10 @@ rmw_context_impl_t::initialize_node(
       RMW_SET_ERROR_MSG("failed to initialize DomainParticipant");
       return ret;
     }
+    if (graph_enable(this->base) != RMW_RET_OK) {
+      RMW_SET_ERROR_MSG("failed to enable graph cache");
+      return RMW_RET_ERROR;
+    }
   }
 
   this->node_count++;
@@ -284,6 +288,7 @@ rmw_context_impl_t::finalize_participant()
   RCUTILS_LOG_DEBUG_NAMED(
     RMW_GURUMDDS_ID,
     "DomainParticipant finalized");
+  rcutils_log(nullptr, RCUTILS_LOG_SEVERITY_INFO, "rmw_context_impl.cpp", "participant finalized %p", this);
 
   return RMW_RET_OK;
 }
@@ -297,36 +302,22 @@ rmw_context_impl_t::finalize()
     reinterpret_cast<void *>(this));
 
   dds_DomainParticipantFactory * factory = dds_DomainParticipantFactory_get_instance();
-  dds_InstanceHandleSeq * participants = dds_InstanceHandleSeq_create(4);
 
-  auto scope_exit_seq = rcpputils::make_scope_exit(
-    [&participants]()
-    {
-      dds_InstanceHandleSeq_delete(participants);
-    });
-
-  if (dds_RETCODE_OK !=
-    dds_DomainParticipantFactory_get_contained_entities(factory, participants))
-  {
-    RMW_SET_ERROR_MSG("failed to list existing participants");
-    return RMW_RET_ERROR;
-  }
-
-  for (uint32_t i = 0; i < dds_InstanceHandleSeq_length(participants); i++) {
-    dds_DomainParticipant * participant =
-      reinterpret_cast<dds_DomainParticipant *>(dds_InstanceHandleSeq_get(participants, i));
+  if (this->participant != nullptr) {
     if (dds_RETCODE_OK !=
-      dds_DomainParticipantFactory_delete_participant(factory, participant))
+      dds_DomainParticipantFactory_delete_participant(factory, this->participant))
     {
       RMW_SET_ERROR_MSG("failed to delete DomainParticipant");
       return RMW_RET_ERROR;
     }
+    this->participant = nullptr;
   }
 
   RCUTILS_LOG_DEBUG_NAMED(
     RMW_GURUMDDS_ID,
     "RMW context finalized: %p",
     reinterpret_cast<void *>(this));
+  rcutils_log(nullptr, RCUTILS_LOG_SEVERITY_INFO, "rmw_context_impl.cpp", "context finalized %p", this);
 
   return RMW_RET_OK;
 }

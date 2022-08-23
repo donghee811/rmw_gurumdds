@@ -97,13 +97,13 @@ graph_on_participant_info(rmw_context_impl_t * ctx);
 rmw_ret_t
 graph_add_participant(
   rmw_context_impl_t * const ctx,
-  const rmw_gid_t gid,
+  const dds_GUID_t * const dp_guid,
   const char * const enclave);
 
 rmw_ret_t
 graph_remove_participant(
   rmw_context_impl_t * const ctx,
-  const rmw_gid_t gid);
+  const dds_GUID_t * const dp_guid);
 
 rmw_ret_t
 graph_add_remote_entity(
@@ -122,7 +122,7 @@ graph_add_remote_entity(
 rmw_ret_t
 graph_remove_entity(
   rmw_context_impl_t * const ctx,
-  const rmw_gid_t gid,
+  const dds_GUID_t * const guid,
   const bool is_reader);
 
 #endif  // RMW_GURUMDDS_CPP__GRAPH_CACHE_HPP_

@@ -49,21 +49,42 @@ rmw_context_impl_t::initialize_node(
   (void)node_name;
   (void)node_namespace;
 
-  if (this->node_count == 0u) {
-    rmw_ret_t ret = this->initialize_participant(node_name, node_namespace, localhost_only);
-    if (ret != RMW_RET_OK) {
-      RMW_SET_ERROR_MSG("failed to initialize DomainParticipant");
-      return ret;
-    }
-    if (graph_enable(this->base) != RMW_RET_OK) {
-      RMW_SET_ERROR_MSG("failed to enable graph cache");
+  if (this->node_count != 0u) {
+    if ((this->localhost_only && !localhost_only) ||
+      (!this->localhost_only && localhost_only))
+    {
+      RCUTILS_LOG_ERROR_NAMED(
+        RMW_GURUMDDS_ID,
+        "localhost_only option not matched, "
+        "ctx.localhost_only=%d, node.localhost_only=%d",
+        this->localhost_only, localhost_only);
       return RMW_RET_ERROR;
     }
+
+    this->node_count += 1;
+
+    RCUTILS_LOG_DEBUG_NAMED(
+      RMW_GURUMDDS_ID, "initialized new node, total node=%lu", this->node_count);
+
+    return RMW_RET_OK;
   }
 
-  this->node_count++;
+  rmw_ret_t ret = this->initialize_participant(node_name, node_namespace, localhost_only);
+  if (ret != RMW_RET_OK) {
+    RMW_SET_ERROR_MSG("failed to initialize DomainParticipant");
+    return ret;
+  }
+
+  if (graph_enable(this->base) != RMW_RET_OK) {
+    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "failed to enable graph cache");
+    return RMW_RET_ERROR;
+  }
+
+  this->node_count = 1;
+
   RCUTILS_LOG_DEBUG_NAMED(
-    RMW_GURUMDDS_ID, "initialized new node, totla node=%lu", this->node_count);
+    RMW_GURUMDDS_ID, "initialized first node, total node=%lu", this->node_count);
+
   return RMW_RET_OK;
 }
 
@@ -288,7 +309,6 @@ rmw_context_impl_t::finalize_participant()
   RCUTILS_LOG_DEBUG_NAMED(
     RMW_GURUMDDS_ID,
     "DomainParticipant finalized");
-  rcutils_log(nullptr, RCUTILS_LOG_SEVERITY_INFO, "rmw_context_impl.cpp", "participant finalized %p", this);
 
   return RMW_RET_OK;
 }
@@ -317,7 +337,6 @@ rmw_context_impl_t::finalize()
     RMW_GURUMDDS_ID,
     "RMW context finalized: %p",
     reinterpret_cast<void *>(this));
-  rcutils_log(nullptr, RCUTILS_LOG_SEVERITY_INFO, "rmw_context_impl.cpp", "context finalized %p", this);
 
   return RMW_RET_OK;
 }

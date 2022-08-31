@@ -90,6 +90,15 @@ __rmw_create_node(
     return nullptr;
   }
 
+  auto context_finalize = rcpputils::make_scope_exit(
+    [ctx]()
+    {
+      if (RMW_RET_OK != ctx->finalize_node()) {
+        RCUTILS_LOG_ERROR_NAMED(
+          RMW_GURUMDDS_ID, "failed to finalize node in context");
+      }
+    });
+
   rmw_node_t * node_handle = rmw_node_allocate();
   if (node_handle == nullptr) {
     RMW_SET_ERROR_MSG("failed to allocate memory for node handle");
@@ -135,6 +144,7 @@ __rmw_create_node(
     RMW_GURUMDDS_ID,
     "Created node '%s' in namespace '%s'", name, namespace_);
 
+  context_finalize.cancel();
   cleanup_node.cancel();
   return node_handle;
 }

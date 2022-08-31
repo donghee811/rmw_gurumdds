@@ -73,7 +73,7 @@ __add_entity(
     };
   }
 
-  RCUTILS_LOG_INFO_NAMED(
+  RCUTILS_LOG_DEBUG_NAMED(
     RMW_GURUMDDS_ID,
     "[context_listener thread] assert endpoint: "
     "ctx=%p, "
@@ -121,9 +121,7 @@ __add_entity(
       type_name);
     return RMW_RET_ERROR;
   }
-  std::ostringstream add_stream;
-  add_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("After add entity", "ctx: %p\n%s", ctx, add_stream.str().c_str());
+
   return RMW_RET_OK;
 }
 
@@ -137,21 +135,20 @@ __remove_entity(
     RMW_SET_ERROR_MSG("failed to remove entity from graph_cache");
     return RMW_RET_ERROR;
   }
-  RCUTILS_LOG_INFO_NAMED(
-  RMW_GURUMDDS_ID,
-  "[context_listener thread] remove endpoint: "
-  "ctx=%p, "
-  "cache=%p, "
-  "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
-  reinterpret_cast<void *>(ctx),
-  reinterpret_cast<void *>(&ctx->common_ctx.graph_cache),
-  reinterpret_cast<const uint32_t *>(gid.data)[0],
-  reinterpret_cast<const uint32_t *>(gid.data)[1],
-  reinterpret_cast<const uint32_t *>(gid.data)[2],
-  reinterpret_cast<const uint32_t *>(gid.data)[3]);
-  std::ostringstream remove_stream;
-  remove_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("After remove entity", "ctx: %p\n%s", ctx, remove_stream.str().c_str());
+
+  RCUTILS_LOG_DEBUG_NAMED(
+    RMW_GURUMDDS_ID,
+    "[context_listener thread] remove endpoint: "
+    "ctx=%p, "
+    "cache=%p, "
+    "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
+    reinterpret_cast<void *>(ctx),
+    reinterpret_cast<void *>(&ctx->common_ctx.graph_cache),
+    reinterpret_cast<const uint32_t *>(gid.data)[0],
+    reinterpret_cast<const uint32_t *>(gid.data)[1],
+    reinterpret_cast<const uint32_t *>(gid.data)[2],
+    reinterpret_cast<const uint32_t *>(gid.data)[3]);
+
   return RMW_RET_OK;
 }
 
@@ -162,7 +159,7 @@ __add_local_publisher(
   dds_DataWriter * const datawriter,
   const rmw_gid_t gid)
 {
-  RCUTILS_LOG_INFO_NAMED(
+  RCUTILS_LOG_DEBUG_NAMED(
     RMW_GURUMDDS_ID,
     "[graph] local publisher created: "
     "node=%s::%s, "
@@ -321,7 +318,8 @@ graph_cache_initialize(rmw_context_impl_t * const ctx)
     true);
 
   if (ctx->common_ctx.pub == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create publisher for ParticipantEntityInfo");
+    RCUTILS_LOG_ERROR_NAMED(
+      RMW_GURUMDDS_ID, "failed to create publisher for ParticipantEntityInfo");
     return RMW_RET_ERROR;
   }
 
@@ -340,7 +338,8 @@ graph_cache_initialize(rmw_context_impl_t * const ctx)
     true);
 
   if (ctx->common_ctx.sub == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create subscription for ParticipantEntityInfo");
+    RCUTILS_LOG_ERROR_NAMED(
+      RMW_GURUMDDS_ID, "failed to create subscription for ParticipantEntityInfo");
     return RMW_RET_ERROR;
   }
 
@@ -363,18 +362,6 @@ graph_cache_initialize(rmw_context_impl_t * const ctx)
   entity_get_gid(reinterpret_cast<dds_Entity *>(ctx->participant), ctx->common_ctx.gid);
   std::string dp_enclave = ctx->base->options.enclave;
   ctx->common_ctx.graph_cache.add_participant(ctx->common_ctx.gid, dp_enclave);
-
-  std::ostringstream initialize_stream;
-  initialize_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Initialize graph_cache",
-  "ctx: %p "
-  "comon_ctx.gid:gid=%08X.%08X.%08X.%08X"
-  "\n%s", ctx,
-  reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[0],
-  reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[1],
-  reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[2],
-  reinterpret_cast<const uint32_t *>(ctx->common_ctx.gid.data)[3],
-  initialize_stream.str().c_str());
 
   dds_Subscriber * builtin_subscriber =
     dds_DomainParticipant_get_builtin_subscriber(ctx->participant);
@@ -503,13 +490,10 @@ graph_on_node_created(
 
   if (graph_publish_update(ctx, reinterpret_cast<void *>(&msg)) != RMW_RET_OK) {
     static_cast<void>(ctx->common_ctx.graph_cache.remove_node(
-        ctx->common_ctx.gid, node->name, node->namespace_));
+      ctx->common_ctx.gid, node->name, node->namespace_));
     return RMW_RET_ERROR;
   }
 
-  std::ostringstream node_add_stream;
-  node_add_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Node created", "ctx:%p\n%s", ctx, node_add_stream.str().c_str());
   return RMW_RET_OK;
 }
 
@@ -527,9 +511,6 @@ graph_on_node_deleted(
     return RMW_RET_ERROR;
   }
 
-  std::ostringstream node_remove_stream;
-  node_remove_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Node deleted", "ctx:%p\n%s", ctx, node_remove_stream.str().c_str());
   return RMW_RET_OK;
 }
 
@@ -562,10 +543,6 @@ graph_on_publisher_created(
     return RMW_RET_ERROR;
   }
 
-  std::ostringstream created_stream;
-  created_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Publisher created", "ctx:%p\n%s", ctx, created_stream.str().c_str());
-
   return RMW_RET_OK;
 }
 
@@ -593,10 +570,6 @@ graph_on_publisher_deleted(
   if (graph_publish_update(ctx, reinterpret_cast<void *>(&msg)) != RMW_RET_OK) {
     return RMW_RET_ERROR;
   }
-
-  std::ostringstream deleted_stream;
-  deleted_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Publisher deleted", "ctx:%p\n%s", ctx, deleted_stream.str().c_str());
 
   return failed ? RMW_RET_ERROR : RMW_RET_OK;
 }
@@ -630,10 +603,6 @@ graph_on_subscriber_created(
     return RMW_RET_ERROR;
   }
 
-  std::ostringstream created_stream;
-  created_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Subscriber created", "ctx:%p\n%s", ctx, created_stream.str().c_str());
-
   return RMW_RET_OK;
 }
 
@@ -661,10 +630,6 @@ graph_on_subscriber_deleted(
   if (graph_publish_update(ctx, reinterpret_cast<void *>(&msg)) != RMW_RET_OK) {
     return RMW_RET_ERROR;
   }
-
-  std::ostringstream deleted_stream;
-  deleted_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Subscriber deleted", "ctx:%p\n%s", ctx, deleted_stream.str().c_str());
 
   return failed ? RMW_RET_ERROR : RMW_RET_OK;
 }
@@ -730,10 +695,6 @@ graph_on_service_created(
     return RMW_RET_ERROR;
   }
 
-  std::ostringstream created_stream;
-  created_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Service created", "ctx:%p\n%s", ctx, created_stream.str().c_str());
-
   scope_exit_entities_reset.cancel();
 
   return RMW_RET_OK;
@@ -775,10 +736,6 @@ graph_on_service_deleted(
 
   rc = graph_publish_update(ctx, reinterpret_cast<void *>(&msg));
   failed = failed && (RMW_RET_OK == rc);
-
-  std::ostringstream deleted_stream;
-  deleted_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Service deleted", "ctx:%p\n%s", ctx, deleted_stream.str().c_str());
 
   return failed ? RMW_RET_ERROR : RMW_RET_OK;
 }
@@ -844,10 +801,6 @@ graph_on_client_created(
 
   scope_exit_entities_reset.cancel();
 
-  std::ostringstream created_stream;
-  created_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Client created", "ctx:%p\n%s", ctx, created_stream.str().c_str());
-
   return RMW_RET_OK;
 }
 
@@ -888,10 +841,6 @@ graph_on_client_deleted(
   rc = graph_publish_update(ctx, reinterpret_cast<void *>(&msg));
   failed = failed && (RMW_RET_OK == rc);
 
-  std::ostringstream deleted_stream;
-  deleted_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Client deleted", "ctx:%p\n%s", ctx, deleted_stream.str().c_str());
-
   return failed ? RMW_RET_ERROR : RMW_RET_OK;
 }
 
@@ -924,9 +873,6 @@ graph_on_participant_info(rmw_context_impl_t * ctx)
 
       std::lock_guard<std::mutex> guard(ctx->common_ctx.node_update_mutex);
       ctx->common_ctx.graph_cache.update_participant_entities(msg);
-      std::ostringstream partinfo_stream;
-      partinfo_stream << ctx->common_ctx.graph_cache;
-      RCUTILS_LOG_INFO_NAMED("Update part info", "ctx:%p\n%s", ctx, partinfo_stream.str().c_str());
     }
   } while (taken);
 
@@ -956,9 +902,7 @@ graph_add_participant(
 
   std::lock_guard<std::mutex> guard(ctx->common_ctx.node_update_mutex);
   ctx->common_ctx.graph_cache.add_participant(gid, enclave_str);
-  std::ostringstream add_stream;
-  add_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Add participant", "ctx:%p\n%s", ctx, add_stream.str().c_str());
+
   return RMW_RET_OK;
 }
 
@@ -977,9 +921,7 @@ graph_remove_participant(
 
   std::lock_guard<std::mutex> guard(ctx->common_ctx.node_update_mutex);
   ctx->common_ctx.graph_cache.remove_participant(gid);
-  std::ostringstream remove_stream;
-  remove_stream << ctx->common_ctx.graph_cache;
-  RCUTILS_LOG_INFO_NAMED("Remove participant", "ctx:%p\n%s", ctx, remove_stream.str().c_str());
+
   return RMW_RET_OK;
 }
 
@@ -1040,7 +982,6 @@ graph_remove_entity(
 
   if (memcmp(gid.data, ctx->common_ctx.gid.data, 12) == 0) {
     /* Ignore own announcements */
-    RCUTILS_LOG_INFO_NAMED("graph_remove_entity", "Ignore own participant data");
     return RMW_RET_OK;
   }
 

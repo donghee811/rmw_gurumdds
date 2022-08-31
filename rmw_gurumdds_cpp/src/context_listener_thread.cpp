@@ -126,28 +126,6 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
     attached_condition_count += 1;
   }
 
-  //if (dds_RETCODE_OK !=
-  //  dds_StatusCondition_set_enabled_statuses(
-  //    sub_partinfo->get_statuscondition(), dds_DATA_AVAILABLE_STATUS))
-  //{
-  //  RMW_SET_ERROR_MSG("failed to enable statuses on participant info condition");
-  //  goto cleanup;
-  //}
-
-  //if (dds_RETCODE_OK !=
-  //  dds_WaitSet_attach_condition(
-  //    waitset_info->wait_set,
-  //    reinterpret_cast<dds_Condition *>(sub_partinfo->get_statuscondition())))
-  //{
-  //  RMW_SET_ERROR_MSG(
-  //    "failed to attach participant info condition to "
-  //    "discovery thread waitset");
-  //  goto cleanup;
-  //}
-
-  //attached_partinfo = true;
-  //attached_condition_count += 1;
-
   if (sub_partinfo->topic_reader != nullptr) {
     cond_part_info =
       rmw_attach_reader_to_waitset(sub_partinfo->topic_reader, waitset_info->wait_set);
@@ -274,7 +252,8 @@ cleanup:
           return;
         }
         dds_DataReader_delete_readcondition(
-          ctx->builtin_participant_datareader, reinterpret_cast<dds_ReadCondition *>(cond_dcps_part));
+          ctx->builtin_participant_datareader,
+          reinterpret_cast<dds_ReadCondition *>(cond_dcps_part));
       }
       if (attached_dcps_pub) {
         if (dds_RETCODE_OK !=
@@ -288,7 +267,8 @@ cleanup:
           return;
         }
         dds_DataReader_delete_readcondition(
-          ctx->builtin_publication_datareader, reinterpret_cast<dds_ReadCondition *>(cond_dcps_pub));
+          ctx->builtin_publication_datareader,
+          reinterpret_cast<dds_ReadCondition *>(cond_dcps_pub));
       }
       if (attached_dcps_sub) {
         if (dds_RETCODE_OK !=
@@ -302,7 +282,8 @@ cleanup:
           return;
         }
         dds_DataReader_delete_readcondition(
-          ctx->builtin_subscription_datareader, reinterpret_cast<dds_ReadCondition *>(cond_dcps_sub));
+          ctx->builtin_subscription_datareader,
+          reinterpret_cast<dds_ReadCondition *>(cond_dcps_sub));
       }
       dds_WaitSet_delete(waitset_info->wait_set);
     }
@@ -329,7 +310,7 @@ run_listener_thread(rmw_context_t * ctx)
 
   try {
     common_ctx->listener_thread = std::thread(rmw_gurumdds_discovery_thread, ctx->impl);
-    RCUTILS_LOG_INFO_NAMED(RMW_GURUMDDS_ID, "discovery thread started");
+    RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "discovery thread started");
     return RMW_RET_OK;
   } catch (const std::exception & exc) {
     RMW_SET_ERROR_MSG_WITH_FORMAT_STRING("Failed to create std::thread: %s", exc.what());

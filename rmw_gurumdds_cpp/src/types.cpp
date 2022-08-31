@@ -221,25 +221,28 @@ part_on_data_available(rmw_context_impl_t * const ctx)
       }
 
       dds_GUID_t dp_guid;
-      memcpy(dp_guid.prefix, reinterpret_cast<void *>(info->instance_handle), sizeof(dp_guid.prefix));
-      dp_guid.entityId = 0xc1010000;
-
-      RCUTILS_LOG_INFO_NAMED(
-        "part on data available",
-        "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
-        reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
-        reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
-        reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
-        dp_guid.entityId);
+      memcpy(
+        dp_guid.prefix,
+        reinterpret_cast<void *>(info->instance_handle),
+        sizeof(dp_guid.prefix));
+      dp_guid.entityId = 0x000001C1;
 
       if (!info->valid_data) {
         if (info->instance_state == dds_NOT_ALIVE_DISPOSED_INSTANCE_STATE ||
-          info->instance_state == dds_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE) {
+          info->instance_state == dds_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE)
+        {
           if (RMW_RET_OK !=
             graph_remove_participant(ctx, &dp_guid))
           {
             continue;
           }
+          RCUTILS_LOG_DEBUG_NAMED(
+            "part on data available",
+            "[ud] dp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
+            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
+            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
+            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
+            dp_guid.entityId);
         } else {
           RMW_SET_ERROR_MSG("Ignore participant invalid data");
         }
@@ -268,6 +271,14 @@ part_on_data_available(rmw_context_impl_t * const ctx)
           RMW_SET_ERROR_MSG("failed to asser remote participant in graph");
           continue;
         }
+
+        RCUTILS_LOG_DEBUG_NAMED(
+          "part on data available",
+          "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
+          dp_guid.entityId);
       }
     }
 
@@ -324,7 +335,7 @@ pub_on_data_available(rmw_context_impl_t * const ctx)
         if (info->instance_state == dds_NOT_ALIVE_DISPOSED_INSTANCE_STATE ||
           info->instance_state == dds_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE)
         {
-          RCUTILS_LOG_INFO_NAMED(
+          RCUTILS_LOG_DEBUG_NAMED(
             "pub on data available",
             "[ud] endp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
             reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
@@ -349,7 +360,7 @@ pub_on_data_available(rmw_context_impl_t * const ctx)
           reinterpret_cast<dds_PublicationBuiltinTopicData *>(dds_DataSeq_get(samples, i));
         dds_BuiltinTopicKey_to_GUID(&dp_guid_prefix, pbtd->participant_key);
         memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid_prefix.value));
-        dp_guid.entityId = 0xc1010000;
+        dp_guid.entityId = 0x000001C1;
 
         graph_add_remote_entity(
           ctx,
@@ -364,18 +375,18 @@ pub_on_data_available(rmw_context_impl_t * const ctx)
           &pbtd->lifespan,
           false);
 
-          RCUTILS_LOG_INFO_NAMED(
-            "pub on data available",
-            "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X, "
-            "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
-            dp_guid.entityId,
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
-            endp_guid.entityId);
+        RCUTILS_LOG_DEBUG_NAMED(
+          "pub on data available",
+          "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X, "
+          "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
+          dp_guid.entityId,
+          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
+          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
+          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
+          endp_guid.entityId);
       }
     }
 
@@ -432,7 +443,7 @@ sub_on_data_available(rmw_context_impl_t * const ctx)
         if (info->instance_state == dds_NOT_ALIVE_DISPOSED_INSTANCE_STATE ||
           info->instance_state == dds_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE)
         {
-          RCUTILS_LOG_INFO_NAMED(
+          RCUTILS_LOG_DEBUG_NAMED(
             "sub on data available",
             "[ud] endp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
             reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
@@ -458,7 +469,7 @@ sub_on_data_available(rmw_context_impl_t * const ctx)
 
         dds_BuiltinTopicKey_to_GUID(&dp_guid_prefix, sbtd->participant_key);
         memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid_prefix.value));
-        dp_guid.entityId = 0xc1010000;
+        dp_guid.entityId = 0x000001C1;
 
         graph_add_remote_entity(
           ctx,
@@ -473,18 +484,18 @@ sub_on_data_available(rmw_context_impl_t * const ctx)
           nullptr,
           true);
 
-          RCUTILS_LOG_INFO_NAMED(
-            "sub on data available",
-            "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X, "
-            "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
-            dp_guid.entityId,
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
-            endp_guid.entityId);
+        RCUTILS_LOG_DEBUG_NAMED(
+          "sub on data available",
+          "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X, "
+          "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
+          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
+          dp_guid.entityId,
+          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
+          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
+          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
+          endp_guid.entityId);
       }
     }
 

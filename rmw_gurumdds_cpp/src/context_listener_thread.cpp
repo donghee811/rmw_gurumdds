@@ -71,15 +71,9 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
   bool active = false;
   bool attached_exit = false;
   bool attached_partinfo = false;
-  bool attached_dcps_part = false;
-  bool attached_dcps_pub = false;
-  bool attached_dcps_sub = false;
 
   dds_Condition * cond_active = nullptr;
   dds_Condition * cond_part_info = nullptr;
-  dds_Condition * cond_dcps_part = nullptr;
-  dds_Condition * cond_dcps_pub = nullptr;
-  dds_Condition * cond_dcps_sub = nullptr;
 
   dds_GuardCondition * gcond_exit =
     reinterpret_cast<dds_GuardCondition *>(ctx->common_ctx.listener_thread_gc->data);
@@ -94,36 +88,6 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
   if (waitset_info->wait_set == nullptr) {
     RMW_SET_ERROR_MSG("failed to allocate WaitSet");
     goto cleanup;
-  }
-
-  if (ctx->builtin_participant_datareader != nullptr) {
-    cond_dcps_part =
-      rmw_attach_reader_to_waitset(ctx->builtin_participant_datareader, waitset_info->wait_set);
-    if (cond_dcps_part == nullptr) {
-      goto cleanup;
-    }
-    attached_dcps_part = true;
-    attached_condition_count += 1;
-  }
-
-  if (ctx->builtin_publication_datareader != nullptr) {
-    cond_dcps_pub =
-      rmw_attach_reader_to_waitset(ctx->builtin_publication_datareader, waitset_info->wait_set);
-    if (cond_dcps_pub == nullptr) {
-      goto cleanup;
-    }
-    attached_dcps_pub = true;
-    attached_condition_count += 1;
-  }
-
-  if (ctx->builtin_subscription_datareader != nullptr) {
-    cond_dcps_sub =
-      rmw_attach_reader_to_waitset(ctx->builtin_subscription_datareader, waitset_info->wait_set);
-    if (cond_dcps_sub == nullptr) {
-      goto cleanup;
-    }
-    attached_dcps_sub = true;
-    attached_condition_count += 1;
   }
 
   if (sub_partinfo->topic_reader != nullptr) {
@@ -185,17 +149,8 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
     for (uint32_t i = 0; i < active_len && active; i++) {
       cond_active = dds_ConditionSeq_get(waitset_info->active_conditions, i);
       if (nullptr != cond_part_info && cond_part_info == cond_active) {
-        RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] participnat-info active");
+        RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] participant-info active");
         graph_on_participant_info(ctx);
-      } else if (nullptr != cond_dcps_part && cond_dcps_part == cond_active) {
-        RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] dcps-participants active");
-        part_on_data_available(ctx);
-      } else if (nullptr != cond_dcps_pub && cond_dcps_pub == cond_active) {
-        RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] dcps-publications active");
-        pub_on_data_available(ctx);
-      } else if (nullptr != cond_dcps_sub && cond_dcps_sub == cond_active) {
-        RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] dcps-subscriptions active");
-        sub_on_data_available(ctx);
       } else {
         RMW_SET_ERROR_MSG("unexpected active condition");
         goto cleanup;
@@ -239,51 +194,6 @@ cleanup:
         }
         dds_DataReader_delete_readcondition(
           sub_partinfo->topic_reader, reinterpret_cast<dds_ReadCondition *>(cond_part_info));
-      }
-      if (attached_dcps_part) {
-        if (dds_RETCODE_OK !=
-          dds_WaitSet_detach_condition(
-            waitset_info->wait_set,
-            cond_dcps_part))
-        {
-          RMW_SET_ERROR_MSG(
-            "failed to detach DCPS Participant condition from "
-            "discovery thread waitset");
-          return;
-        }
-        dds_DataReader_delete_readcondition(
-          ctx->builtin_participant_datareader,
-          reinterpret_cast<dds_ReadCondition *>(cond_dcps_part));
-      }
-      if (attached_dcps_pub) {
-        if (dds_RETCODE_OK !=
-          dds_WaitSet_detach_condition(
-            waitset_info->wait_set,
-            cond_dcps_pub))
-        {
-          RMW_SET_ERROR_MSG(
-            "failed to detach DCPS Publication condition from "
-            "discovery thread waitset");
-          return;
-        }
-        dds_DataReader_delete_readcondition(
-          ctx->builtin_publication_datareader,
-          reinterpret_cast<dds_ReadCondition *>(cond_dcps_pub));
-      }
-      if (attached_dcps_sub) {
-        if (dds_RETCODE_OK !=
-          dds_WaitSet_detach_condition(
-            waitset_info->wait_set,
-            cond_dcps_sub))
-        {
-          RMW_SET_ERROR_MSG(
-            "failed to detach DCPS Subscription condition from "
-            "discovery thread waitset");
-          return;
-        }
-        dds_DataReader_delete_readcondition(
-          ctx->builtin_subscription_datareader,
-          reinterpret_cast<dds_ReadCondition *>(cond_dcps_sub));
       }
       dds_WaitSet_delete(waitset_info->wait_set);
     }

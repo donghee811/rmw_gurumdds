@@ -127,6 +127,24 @@ rmw_context_impl_t::initialize_participant(
     return RMW_RET_ERROR;
   }
 
+  const char * const * check_props = nullptr;
+  uint32_t props_count;
+  bool remote_support = false;
+  const char * props_ptr;
+
+  dds_DomainParticipantFactory_get_supported_participant_props(factory, &check_props, &props_count);
+  for (uint32_t i = 0; i < props_count; i++) {
+    props_ptr = strstr(check_props[i], "on_remote");
+    if (props_ptr != nullptr) {
+      remote_support = true;
+      break;
+    }
+  }
+  if (!remote_support) {
+    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "on_remote_callback is not supported");
+    return RMW_RET_ERROR;
+  }
+
   dds_DomainParticipantQos participant_qos;
   dds_ReturnCode_t ret =
     dds_DomainParticipantFactory_get_default_participant_qos(factory, &participant_qos);
@@ -147,7 +165,7 @@ rmw_context_impl_t::initialize_participant(
 
   if (node_user_data.size() > sizeof(participant_qos.user_data.value)) {
     RCUTILS_LOG_ERROR_NAMED(
-      "rmw_gurumdds_cpp",
+      RMW_GURUMDDS_ID,
       "node name, namespace and security context are too long - "
       "the sum of their lengths must be less than %zu",
       sizeof(participant_qos.user_data.value) - strlen("name=;namespace=;enclave=;"));
@@ -169,6 +187,12 @@ rmw_context_impl_t::initialize_participant(
         const_cast<void *>(static_cast<const void *>("127.0.0.1"))},
       {const_cast<char *>("gurumdds.static_discovery.id"),
         const_cast<void *>(static_cast<const void *>(static_discovery_id.c_str()))},
+      {const_cast<char *>("dcps.participant.listener.on_remote_participant_changed"),
+        reinterpret_cast<void *>(on_participant_changed)},
+      {const_cast<char *>("dcps.participant.listener.on_remote_publication_changed"),
+        reinterpret_cast<void *>(on_publication_changed)},
+      {const_cast<char *>("dcps.participant.listener.on_remote_subscription_changed"),
+        reinterpret_cast<void *>(on_subscription_changed)},
       {nullptr, nullptr},
     };
     this->participant = dds_DomainParticipantFactory_create_participant_w_props(
@@ -177,6 +201,12 @@ rmw_context_impl_t::initialize_participant(
     dds_StringProperty props[] = {
       {const_cast<char *>("gurumdds.static_discovery.id"),
         const_cast<void *>(static_cast<const void *>(static_discovery_id.c_str()))},
+      {const_cast<char *>("dcps.participant.listener.on_remote_participant_changed"),
+        reinterpret_cast<void *>(on_participant_changed)},
+      {const_cast<char *>("dcps.participant.listener.on_remote_publication_changed"),
+        reinterpret_cast<void *>(on_publication_changed)},
+      {const_cast<char *>("dcps.participant.listener.on_remote_subscription_changed"),
+        reinterpret_cast<void *>(on_subscription_changed)},
       {nullptr, nullptr},
     };
     this->participant = dds_DomainParticipantFactory_create_participant_w_props(
@@ -227,6 +257,9 @@ rmw_context_impl_t::initialize_participant(
     RMW_SET_ERROR_MSG("failedto finalize subscriber qos");
     return RMW_RET_ERROR;
   }
+
+  dds_Entity_set_context(
+    reinterpret_cast<dds_Entity *>(this->participant), 0, reinterpret_cast<void *>(this));
 
   // Initialize graph_cache
   if (graph_cache_initialize(this) != RMW_RET_OK) {

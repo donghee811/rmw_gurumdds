@@ -34,14 +34,20 @@
 #include "rmw_gurumdds_cpp/dds_include.hpp"
 #include "rmw_gurumdds_cpp/visibility_control.h"
 
-rmw_ret_t
-part_on_data_available(rmw_context_impl_t * const ctx);
+void on_participant_changed(
+  const dds_DomainParticipant * a_participant,
+  const dds_ParticipantBuiltinTopicData * data,
+  dds_InstanceHandle_t handle);
 
-rmw_ret_t
-pub_on_data_available(rmw_context_impl_t * const ctx);
+void on_publication_changed(
+  const dds_DomainParticipant * a_participant,
+  const dds_PublicationBuiltinTopicData * data,
+  dds_InstanceHandle_t handle);
 
-rmw_ret_t
-sub_on_data_available(rmw_context_impl_t * const ctx);
+void on_subscription_changed(
+  const dds_DomainParticipant * a_participant,
+  const dds_SubscriptionBuiltinTopicData * data,
+  dds_InstanceHandle_t handle);
 
 typedef struct _GurumddsWaitSetInfo
 {

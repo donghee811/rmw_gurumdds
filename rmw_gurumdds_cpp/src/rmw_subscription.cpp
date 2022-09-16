@@ -525,7 +525,7 @@ _take_serialized(
         topic_reader, sample_info->publication_handle, sender_gid->data);
       if (ret != dds_RETCODE_OK) {
         if (ret == dds_RETCODE_ERROR) {
-          RCUTILS_LOG_WARN_NAMED("rmw_gurumdds_cpp", "Failed to get publication handle");
+          RCUTILS_LOG_WARN_NAMED(RMW_GURUMDDS_ID, "Failed to get publication handle");
         }
         memset(sender_gid->data, 0, RMW_GID_STORAGE_SIZE);
       }

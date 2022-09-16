@@ -187,328 +187,159 @@ __get_user_data_key(
   return RMW_RET_OK;
 }
 
-rmw_ret_t
-part_on_data_available(rmw_context_impl_t * const ctx)
+void on_participant_changed(
+  const dds_DomainParticipant * a_participant,
+  const dds_ParticipantBuiltinTopicData * data,
+  dds_InstanceHandle_t handle)
 {
-  dds_DataSeq * samples = dds_DataSeq_create(8);
-  if (samples == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create data sample sequence");
-    return RMW_RET_ERROR;
+  dds_DomainParticipant * participant = const_cast<dds_DomainParticipant *>(a_participant);
+  rmw_context_impl_t * ctx =
+    reinterpret_cast<rmw_context_impl_t *>(
+    dds_Entity_get_context(reinterpret_cast<dds_Entity *>(participant), 0));
+
+  dds_GUID_t dp_guid;
+  GuidPrefix_t dp_guid_prefix;
+  dds_BuiltinTopicKey_to_GUID(&dp_guid_prefix, data->key);
+  memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid.prefix));
+  dp_guid.entityId = 0x000001C1;
+
+  if (reinterpret_cast<void *>(handle) == NULL) {
+    graph_remove_participant(ctx, &dp_guid);
+  } else {
+    std::string enclave_str;
+    bool enclave_found;
+    dds_ReturnCode_t rc =
+      __get_user_data_key(const_cast<dds_ParticipantBuiltinTopicData *>(data), 
+      "securitycontext", enclave_str, enclave_found);
+    if (RMW_RET_OK != rc) {
+      RMW_SET_ERROR_MSG("failed to parse user data for enclave");
+    }
+
+    const char * enclave = nullptr;
+    if (enclave_found) {
+      enclave = enclave_str.c_str();
+    }
+
+    if (RMW_RET_OK != graph_add_participant(ctx, &dp_guid, enclave)) {
+      RMW_SET_ERROR_MSG("failed to assert remote participant in graph");
+    }    
   }
-  dds_SampleInfoSeq * infos = dds_SampleInfoSeq_create(8);
-  if (infos == nullptr) {
-    dds_DataSeq_delete(samples);
-    RMW_SET_ERROR_MSG("failed to create sample info sequence");
-    return RMW_RET_ERROR;
-  }
-
-  dds_ReturnCode_t rc = dds_RETCODE_OK;
-
-  do {
-    rc = dds_DataReader_take(
-      ctx->builtin_participant_datareader, samples, infos, 8,
-      dds_ANY_SAMPLE_STATE, dds_ANY_VIEW_STATE, dds_ANY_INSTANCE_STATE);
-
-    if (rc != dds_RETCODE_OK) {
-      continue;
-    }
-
-    const uint32_t data_len = dds_DataSeq_length(samples);
-    for (uint32_t i = 0; i < data_len; i++) {
-      dds_SampleInfo * info = dds_SampleInfoSeq_get(infos, i);
-      if (reinterpret_cast<void *>(info->instance_handle) == NULL) {
-        continue;
-      }
-
-      dds_GUID_t dp_guid;
-      memcpy(
-        dp_guid.prefix,
-        reinterpret_cast<void *>(info->instance_handle),
-        sizeof(dp_guid.prefix));
-      dp_guid.entityId = 0x000001C1;
-
-      if (!info->valid_data) {
-        if (info->instance_state == dds_NOT_ALIVE_DISPOSED_INSTANCE_STATE ||
-          info->instance_state == dds_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE)
-        {
-          if (RMW_RET_OK !=
-            graph_remove_participant(ctx, &dp_guid))
-          {
-            continue;
-          }
-          RCUTILS_LOG_DEBUG_NAMED(
-            "part on data available",
-            "[ud] dp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
-            reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
-            dp_guid.entityId);
-        } else {
-          RMW_SET_ERROR_MSG("Ignore participant invalid data");
-        }
-        continue;
-      }
-
-      if (info->instance_state == dds_ALIVE_INSTANCE_STATE) {
-        std::string enclave_str;
-        bool enclave_found;
-        dds_ParticipantBuiltinTopicData * pbtd =
-          reinterpret_cast<dds_ParticipantBuiltinTopicData *>(dds_DataSeq_get(samples, i));
-        rc = __get_user_data_key(pbtd, "securitycontext", enclave_str, enclave_found);
-        if (RMW_RET_OK != rc) {
-          RMW_SET_ERROR_MSG("failed to parse user data for enclave");
-          continue;
-        }
-
-        const char * enclave = nullptr;
-        if (enclave_found) {
-          enclave = enclave_str.c_str();
-        }
-
-        if (RMW_RET_OK !=
-          graph_add_participant(ctx, &dp_guid, enclave))
-        {
-          RMW_SET_ERROR_MSG("failed to asser remote participant in graph");
-          continue;
-        }
-
-        RCUTILS_LOG_DEBUG_NAMED(
-          "part on data available",
-          "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
-          dp_guid.entityId);
-      }
-    }
-
-    if (dds_RETCODE_OK !=
-      dds_DataReader_return_loan(ctx->builtin_participant_datareader, samples, infos))
-    {
-      RMW_SET_ERROR_MSG("failed to return loan to dds reader");
-      return RMW_RET_ERROR;
-    }
-  } while (dds_RETCODE_OK == rc);
-
-  dds_DataSeq_delete(samples);
-  dds_SampleInfoSeq_delete(infos);
-
-  return RMW_RET_OK;
 }
 
-rmw_ret_t
-pub_on_data_available(rmw_context_impl_t * const ctx)
+void on_publication_changed(
+  const dds_DomainParticipant * a_participant,
+  const dds_PublicationBuiltinTopicData * data,
+  dds_InstanceHandle_t handle)
 {
-  dds_DataSeq * samples = dds_DataSeq_create(8);
-  if (samples == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create data sample sequence");
-    return RMW_RET_ERROR;
+  dds_DomainParticipant * participant = const_cast<dds_DomainParticipant *>(a_participant);
+  rmw_context_impl_t * ctx =
+    reinterpret_cast<rmw_context_impl_t *>(
+    dds_Entity_get_context(reinterpret_cast<dds_Entity *>(participant), 0));
+
+  dds_GUID_t endp_guid;
+  GuidPrefix_t dp_guid_prefix, endp_guid_prefix;
+  dds_BuiltinTopicKey_to_GUID(&dp_guid_prefix, data->participant_key);
+  memcpy(endp_guid.prefix, dp_guid_prefix.value, sizeof(endp_guid.prefix));
+  dds_BuiltinTopicKey_to_GUID(&endp_guid_prefix, data->key);
+  memcpy(&endp_guid.entityId, endp_guid_prefix.value, sizeof(endp_guid.entityId));
+
+  if (reinterpret_cast<void *>(handle) == NULL) {
+    RCUTILS_LOG_DEBUG_NAMED(
+      "pub on data available",
+      "[ud] endp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
+      endp_guid.entityId);
+    graph_remove_entity(ctx, &endp_guid, false);
+  } else {
+    dds_GUID_t dp_guid;
+    memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid.prefix));
+    dp_guid.entityId = 0x000001C1;
+
+    graph_add_remote_entity(
+      ctx,
+      &endp_guid,
+      &dp_guid,
+      data->topic_name,
+      data->type_name,
+      &data->reliability,
+      &data->durability,
+      &data->deadline,
+      &data->liveliness,
+      &data->lifespan,
+      false);
+
+    RCUTILS_LOG_DEBUG_NAMED(
+      "pub on data available",
+      "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X, "
+      "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
+      reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
+      reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
+      reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
+      dp_guid.entityId,
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
+      endp_guid.entityId);
   }
-  dds_SampleInfoSeq * infos = dds_SampleInfoSeq_create(8);
-  if (infos == nullptr) {
-    dds_DataSeq_delete(samples);
-    RMW_SET_ERROR_MSG("failed to create sample info sequence");
-    return RMW_RET_ERROR;
-  }
-
-  dds_ReturnCode_t rc = dds_RETCODE_OK;
-
-  do {
-    rc = dds_DataReader_take(
-      ctx->builtin_publication_datareader, samples, infos, 8,
-      dds_ANY_SAMPLE_STATE, dds_ANY_VIEW_STATE, dds_ANY_INSTANCE_STATE);
-
-    if (rc != dds_RETCODE_OK) {
-      continue;
-    }
-
-    const uint32_t data_len = dds_DataSeq_length(samples);
-    for (uint32_t i = 0; i < data_len; i++) {
-      dds_SampleInfo * info = dds_SampleInfoSeq_get(infos, i);
-      if (reinterpret_cast<void *>(info->instance_handle) == NULL) {
-        continue;
-      }
-      dds_GUID_t endp_guid;
-      memcpy(endp_guid.prefix, reinterpret_cast<void *>(info->instance_handle), 16);
-
-      if (!info->valid_data) {
-        if (info->instance_state == dds_NOT_ALIVE_DISPOSED_INSTANCE_STATE ||
-          info->instance_state == dds_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE)
-        {
-          RCUTILS_LOG_DEBUG_NAMED(
-            "pub on data available",
-            "[ud] endp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
-            endp_guid.entityId);
-          if (RMW_RET_OK !=
-            graph_remove_entity(ctx, &endp_guid, false))
-          {
-            continue;
-          }
-        } else {
-          RMW_SET_ERROR_MSG("ignored publication invalid data");
-        }
-        continue;
-      }
-
-      if (info->instance_state == dds_ALIVE_INSTANCE_STATE) {
-        GuidPrefix_t dp_guid_prefix;
-        dds_GUID_t dp_guid;
-        dds_PublicationBuiltinTopicData * pbtd =
-          reinterpret_cast<dds_PublicationBuiltinTopicData *>(dds_DataSeq_get(samples, i));
-        dds_BuiltinTopicKey_to_GUID(&dp_guid_prefix, pbtd->participant_key);
-        memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid_prefix.value));
-        dp_guid.entityId = 0x000001C1;
-
-        graph_add_remote_entity(
-          ctx,
-          &endp_guid,
-          &dp_guid,
-          pbtd->topic_name,
-          pbtd->type_name,
-          &pbtd->reliability,
-          &pbtd->durability,
-          &pbtd->deadline,
-          &pbtd->liveliness,
-          &pbtd->lifespan,
-          false);
-
-        RCUTILS_LOG_DEBUG_NAMED(
-          "pub on data available",
-          "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X, "
-          "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
-          dp_guid.entityId,
-          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
-          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
-          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
-          endp_guid.entityId);
-      }
-    }
-
-    if (dds_RETCODE_OK !=
-      dds_DataReader_return_loan(ctx->builtin_publication_datareader, samples, infos))
-    {
-      RMW_SET_ERROR_MSG("failed to return loan to dds reader");
-      return RMW_RET_ERROR;
-    }
-  } while (dds_RETCODE_OK == rc);
-
-  dds_DataSeq_delete(samples);
-  dds_SampleInfoSeq_delete(infos);
-
-  return RMW_RET_OK;
 }
 
-rmw_ret_t
-sub_on_data_available(rmw_context_impl_t * const ctx)
+void on_subscription_changed(
+  const dds_DomainParticipant * a_participant,
+  const dds_SubscriptionBuiltinTopicData * data,
+  dds_InstanceHandle_t handle)
 {
-  dds_DataSeq * samples = dds_DataSeq_create(8);
-  if (samples == nullptr) {
-    RMW_SET_ERROR_MSG("failed to create data sample sequence");
-    return RMW_RET_ERROR;
+  dds_DomainParticipant * participant = const_cast<dds_DomainParticipant *>(a_participant);
+  rmw_context_impl_t * ctx =
+    reinterpret_cast<rmw_context_impl_t *>(
+    dds_Entity_get_context(reinterpret_cast<dds_Entity *>(participant), 0));
+
+  dds_GUID_t endp_guid;
+  GuidPrefix_t dp_guid_prefix, endp_guid_prefix;
+  dds_BuiltinTopicKey_to_GUID(&dp_guid_prefix, data->participant_key);
+  memcpy(endp_guid.prefix, dp_guid_prefix.value, sizeof(endp_guid.prefix));
+  dds_BuiltinTopicKey_to_GUID(&endp_guid_prefix, data->key);
+  memcpy(&endp_guid.entityId, endp_guid_prefix.value, sizeof(endp_guid.entityId));
+
+  if (reinterpret_cast<void *>(handle) == NULL) {
+    RCUTILS_LOG_DEBUG_NAMED(
+      "sub on data available",
+      "[ud] endp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
+      endp_guid.entityId);
+    graph_remove_entity(ctx, &endp_guid, false);
+  } else {
+    dds_GUID_t dp_guid;
+    memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid.prefix));
+    dp_guid.entityId = 0x000001C1;
+
+    graph_add_remote_entity(
+      ctx,
+      &endp_guid,
+      &dp_guid,
+      data->topic_name,
+      data->type_name,
+      &data->reliability,
+      &data->durability,
+      &data->deadline,
+      &data->liveliness,
+      nullptr,
+      true);
+
+    RCUTILS_LOG_DEBUG_NAMED(
+      "sub on data available",
+      "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X, "
+      "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
+      reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
+      reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
+      reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
+      dp_guid.entityId,
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
+      reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
+      endp_guid.entityId);
   }
-  dds_SampleInfoSeq * infos = dds_SampleInfoSeq_create(8);
-  if (infos == nullptr) {
-    dds_DataSeq_delete(samples);
-    RMW_SET_ERROR_MSG("failed to create sample info sequence");
-    return RMW_RET_ERROR;
-  }
-
-  dds_ReturnCode_t rc = dds_RETCODE_OK;
-
-  do {
-    rc = dds_DataReader_take(
-      ctx->builtin_subscription_datareader, samples, infos, 8,
-      dds_ANY_SAMPLE_STATE, dds_ANY_VIEW_STATE, dds_ANY_INSTANCE_STATE);
-
-    if (rc != dds_RETCODE_OK) {
-      continue;
-    }
-
-    const uint32_t data_len = dds_DataSeq_length(samples);
-    for (uint32_t i = 0; i < data_len; i++) {
-      dds_SampleInfo * info = dds_SampleInfoSeq_get(infos, i);
-      if (reinterpret_cast<void *>(info->instance_handle) == NULL) {
-        continue;
-      }
-      dds_GUID_t endp_guid;
-      memcpy(endp_guid.prefix, reinterpret_cast<void *>(info->instance_handle), 16);
-
-      if (!info->valid_data) {
-        if (info->instance_state == dds_NOT_ALIVE_DISPOSED_INSTANCE_STATE ||
-          info->instance_state == dds_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE)
-        {
-          RCUTILS_LOG_DEBUG_NAMED(
-            "sub on data available",
-            "[ud] endp_gid=0x%08X.0x%08X.0x%08X.0x%08X ",
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
-            reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
-            endp_guid.entityId);
-          if (RMW_RET_OK !=
-            graph_remove_entity(ctx, &endp_guid, true))
-          {
-            continue;
-          }
-        } else {
-          RMW_SET_ERROR_MSG("Ignore subscription invalid data");
-        }
-        continue;
-      }
-
-      if (info->instance_state == dds_ALIVE_INSTANCE_STATE) {
-        dds_SubscriptionBuiltinTopicData * sbtd =
-          reinterpret_cast<dds_SubscriptionBuiltinTopicData *>(dds_DataSeq_get(samples, i));
-        GuidPrefix_t dp_guid_prefix;
-        dds_GUID_t dp_guid;
-
-        dds_BuiltinTopicKey_to_GUID(&dp_guid_prefix, sbtd->participant_key);
-        memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid_prefix.value));
-        dp_guid.entityId = 0x000001C1;
-
-        graph_add_remote_entity(
-          ctx,
-          &endp_guid,
-          &dp_guid,
-          sbtd->topic_name,
-          sbtd->type_name,
-          &sbtd->reliability,
-          &sbtd->durability,
-          &sbtd->deadline,
-          &sbtd->liveliness,
-          nullptr,
-          true);
-
-        RCUTILS_LOG_DEBUG_NAMED(
-          "sub on data available",
-          "dp_gid=0x%08X.0x%08X.0x%08X.0x%08X, "
-          "gid=0x%08X.0x%08X.0x%08X.0x%08X, ",
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[0],
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[1],
-          reinterpret_cast<const uint32_t *>(dp_guid.prefix)[2],
-          dp_guid.entityId,
-          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[0],
-          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[1],
-          reinterpret_cast<const uint32_t *>(endp_guid.prefix)[2],
-          endp_guid.entityId);
-      }
-    }
-
-    if (dds_RETCODE_OK !=
-      dds_DataReader_return_loan(ctx->builtin_subscription_datareader, samples, infos))
-    {
-      RMW_SET_ERROR_MSG("failed to return loan to dds reader");
-      return RMW_RET_ERROR;
-    }
-  } while (dds_RETCODE_OK == rc);
-
-  dds_DataSeq_delete(samples);
-  dds_SampleInfoSeq_delete(infos);
-
-  return RMW_RET_OK;
 }

@@ -297,6 +297,8 @@ graph_cache_initialize(rmw_context_impl_t * const ctx)
 
   rmw_publisher_options_t publisher_options = rmw_get_default_publisher_options();
   rmw_subscription_options_t subscription_options = rmw_get_default_subscription_options();
+  
+  // This is currently not implemented in gurumdds
   subscription_options.ignore_local_publications = true;
 
   const rosidl_message_type_support_t * const type_supports_partinfo =
@@ -362,34 +364,6 @@ graph_cache_initialize(rmw_context_impl_t * const ctx)
   entity_get_gid(reinterpret_cast<dds_Entity *>(ctx->participant), ctx->common_ctx.gid);
   std::string dp_enclave = ctx->base->options.enclave;
   ctx->common_ctx.graph_cache.add_participant(ctx->common_ctx.gid, dp_enclave);
-
-  dds_Subscriber * builtin_subscriber =
-    dds_DomainParticipant_get_builtin_subscriber(ctx->participant);
-  if (builtin_subscriber == nullptr) {
-    RMW_SET_ERROR_MSG("failed to get builtin subscriber");
-    return RMW_RET_ERROR;
-  }
-
-  ctx->builtin_participant_datareader =
-    dds_Subscriber_lookup_datareader(builtin_subscriber, "BuiltinParticipant");
-  if (ctx->builtin_participant_datareader == nullptr) {
-    RMW_SET_ERROR_MSG("builtin participant datareader handle is null");
-    return RMW_RET_ERROR;
-  }
-
-  ctx->builtin_publication_datareader =
-    dds_Subscriber_lookup_datareader(builtin_subscriber, "BuiltinPublications");
-  if (ctx->builtin_publication_datareader == nullptr) {
-    RMW_SET_ERROR_MSG("builtin publication datareader handle is null");
-    return RMW_RET_ERROR;
-  }
-
-  ctx->builtin_subscription_datareader =
-    dds_Subscriber_lookup_datareader(builtin_subscriber, "BuiltinSubscriptions");
-  if (ctx->builtin_subscription_datareader == nullptr) {
-    RMW_SET_ERROR_MSG("builtin subscription datareader handle is null");
-    return RMW_RET_ERROR;
-  }
 
   return RMW_RET_OK;
 }

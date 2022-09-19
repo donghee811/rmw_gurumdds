@@ -15,28 +15,20 @@
 #include <cassert>
 #include <memory>
 #include <string>
-#include <functional>
 
 #include "rcpputils/scope_exit.hpp"
+
 #include "rcutils/logging_macros.h"
 #include "rcutils/types.h"
-#include "rcutils/error_handling.h"
 
 #include "rmw/allocators.h"
-#include "rmw/error_handling.h"
 #include "rmw/rmw.h"
-#include "rmw/impl/cpp/macros.hpp"
 #include "rmw/types.h"
 
-#include "rmw_dds_common/context.hpp"
-#include "rmw_dds_common/msg/participant_entities_info.hpp"
+#include "rmw_gurumdds_cpp/graph_cache.hpp"
+#include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 
 #include "rosidl_typesupport_cpp/message_type_support.hpp"
-
-#include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
-#include "rmw_gurumdds_cpp/dds_include.hpp"
-#include "rmw_gurumdds_cpp/graph_cache.hpp"
-
 
 using rmw_dds_common::msg::ParticipantEntitiesInfo;
 
@@ -349,11 +341,6 @@ rmw_context_impl_t::finalize_participant()
 rmw_ret_t
 rmw_context_impl_t::finalize()
 {
-  RCUTILS_LOG_DEBUG_NAMED(
-    RMW_GURUMDDS_ID,
-    "finalizing RMW context: %p",
-    reinterpret_cast<void *>(this));
-
   dds_DomainParticipantFactory * factory = dds_DomainParticipantFactory_get_instance();
 
   if (this->participant != nullptr) {

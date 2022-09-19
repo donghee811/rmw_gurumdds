@@ -22,6 +22,8 @@
 #include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 #include "rmw_gurumdds_cpp/types.hpp"
 
+#define ENTITYID_PARTICIPANT 0x000001C1
+
 rmw_ret_t GurumddsPublisherInfo::get_status(
   dds_StatusMask mask,
   void * event)
@@ -201,7 +203,7 @@ void on_participant_changed(
   GuidPrefix_t dp_guid_prefix;
   dds_BuiltinTopicKey_to_GUID(&dp_guid_prefix, data->key);
   memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid.prefix));
-  dp_guid.entityId = 0x000001C1;
+  dp_guid.entityId = ENTITYID_PARTICIPANT;
 
   if (reinterpret_cast<void *>(handle) == NULL) {
     graph_remove_participant(ctx, &dp_guid);
@@ -255,7 +257,7 @@ void on_publication_changed(
   } else {
     dds_GUID_t dp_guid;
     memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid.prefix));
-    dp_guid.entityId = 0x000001C1;
+    dp_guid.entityId = ENTITYID_PARTICIPANT;
 
     graph_add_remote_entity(
       ctx,
@@ -314,7 +316,7 @@ void on_subscription_changed(
   } else {
     dds_GUID_t dp_guid;
     memcpy(dp_guid.prefix, dp_guid_prefix.value, sizeof(dp_guid.prefix));
-    dp_guid.entityId = 0x000001C1;
+    dp_guid.entityId = ENTITYID_PARTICIPANT;
 
     graph_add_remote_entity(
       ctx,

@@ -251,7 +251,6 @@ rmw_context_fini(rmw_context_t * context)
     ret_exit = ret;
   }
 
-  // delete context->impl;
   *context = rmw_get_zero_initialized_context();
 
   return ret_exit;

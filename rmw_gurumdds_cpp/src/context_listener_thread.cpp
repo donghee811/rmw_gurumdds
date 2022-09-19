@@ -21,11 +21,11 @@
 
 #include "rmw/allocators.h"
 #include "rmw/error_handling.h"
+#include "rmw/impl/cpp/macros.hpp"
 #include "rmw/init.h"
 #include "rmw/ret_types.h"
 #include "rmw/rmw.h"
 #include "rmw/types.h"
-#include "rmw/impl/cpp/macros.hpp"
 
 #include "rmw_dds_common/context.hpp"
 #include "rmw_dds_common/gid_utils.hpp"
@@ -56,9 +56,9 @@ rmw_attach_reader_to_waitset(
 }
 
 static
-void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
+void rmw_gurumdds_listener_thread(rmw_context_impl_t * ctx)
 {
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] starting up...");
+  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[listener thread] starting up...");
 
   GurumddsSubscriberInfo * sub_partinfo =
     reinterpret_cast<GurumddsSubscriberInfo *>(ctx->common_ctx.sub->data);
@@ -105,7 +105,7 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
       waitset_info->wait_set,
       reinterpret_cast<dds_Condition *>(gcond_exit)))
   {
-    RMW_SET_ERROR_MSG("failed to attach exit condition to discovery thread waitset");
+    RMW_SET_ERROR_MSG("failed to attach exit condition to listener thread waitset");
     goto cleanup;
   }
   attached_exit = true;
@@ -117,30 +117,24 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
     goto cleanup;
   }
 
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] main loop");
-
   active = ctx->common_ctx.thread_is_running.load();
 
   do {
     if (!active) {
       continue;
     }
-    RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] waiting...");
     ret = dds_WaitSet_wait(waitset_info->wait_set, waitset_info->active_conditions, &timeout);
 
     if (ret != dds_RETCODE_OK) {
-      RMW_SET_ERROR_MSG("wait failed for discovery thread");
+      RMW_SET_ERROR_MSG("wait failed for listener thread");
       goto cleanup;
     }
 
     active_len = dds_ConditionSeq_length(waitset_info->active_conditions);
 
-    RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] active=%u", active_len);
-
     for (uint32_t i = 0; i < active_len && active; i++) {
       cond_active = dds_ConditionSeq_get(waitset_info->active_conditions, i);
       if (cond_active == reinterpret_cast<dds_Condition *>(gcond_exit)) {
-        RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] exit condition active");
         active = false;
         continue;
       }
@@ -149,7 +143,6 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
     for (uint32_t i = 0; i < active_len && active; i++) {
       cond_active = dds_ConditionSeq_get(waitset_info->active_conditions, i);
       if (nullptr != cond_part_info && cond_part_info == cond_active) {
-        RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] participant-info active");
         graph_on_participant_info(ctx);
       } else {
         RMW_SET_ERROR_MSG("unexpected active condition");
@@ -160,10 +153,8 @@ void rmw_gurumdds_discovery_thread(rmw_context_impl_t * ctx)
     active = active && ctx->common_ctx.thread_is_running.load();
   } while (active);
 
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] main loop terminated");
-
 cleanup:
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] cleaning up...");
+  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[listener thread] cleaning up...");
   if (waitset_info != nullptr) {
     if (waitset_info->active_conditions) {
       dds_ConditionSeq_delete(waitset_info->active_conditions);
@@ -177,7 +168,7 @@ cleanup:
         {
           RMW_SET_ERROR_MSG(
             "failed to detach graph condition from "
-            "discovery thread waitset");
+            "listener thread waitset");
           return;
         }
       }
@@ -189,7 +180,7 @@ cleanup:
         {
           RMW_SET_ERROR_MSG(
             "failed to detach participant info condition from "
-            "discovery thread waitset");
+            "listener thread waitset");
           return;
         }
         dds_DataReader_delete_readcondition(
@@ -200,27 +191,25 @@ cleanup:
     delete waitset_info;
   }
 
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] done");
+  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[listener thread] done");
 }
 
 rmw_ret_t
 run_listener_thread(rmw_context_t * ctx)
 {
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "starting discovery thread...");
-
   rmw_dds_common::Context * const common_ctx = &ctx->impl->common_ctx;
   common_ctx->listener_thread_gc = rmw_create_guard_condition(ctx);
 
   if (common_ctx->listener_thread_gc == nullptr) {
-    RMW_SET_ERROR_MSG("Failed to create discovery thread condition");
+    RMW_SET_ERROR_MSG("Failed to create listener thread guard condition");
     return RMW_RET_ERROR;
   }
 
   common_ctx->thread_is_running.store(true);
 
   try {
-    common_ctx->listener_thread = std::thread(rmw_gurumdds_discovery_thread, ctx->impl);
-    RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "discovery thread started");
+    common_ctx->listener_thread = std::thread(rmw_gurumdds_listener_thread, ctx->impl);
+    RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[listener thread] started");
     return RMW_RET_OK;
   } catch (const std::exception & exc) {
     RMW_SET_ERROR_MSG_WITH_FORMAT_STRING("Failed to create std::thread: %s", exc.what());
@@ -231,7 +220,7 @@ run_listener_thread(rmw_context_t * ctx)
   // Handling when thread creation fails
   common_ctx->thread_is_running.store(false);
   if (rmw_destroy_guard_condition(common_ctx->listener_thread_gc) != RMW_RET_OK) {
-    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "Failed to destroy discovery thread guard condition");
+    RCUTILS_LOG_ERROR_NAMED(RMW_GURUMDDS_ID, "Failed to destroy listener thread guard condition");
   }
 
   return RMW_RET_ERROR;
@@ -242,7 +231,6 @@ rmw_ret_t
 stop_listener_thread(rmw_context_t * ctx)
 {
   rmw_dds_common::Context * const common_ctx = &ctx->impl->common_ctx;
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "stopping discovery thread...");
 
   if (common_ctx->thread_is_running.exchange(false)) {
     if (rmw_trigger_guard_condition(common_ctx->listener_thread_gc) != RMW_RET_OK) {
@@ -264,6 +252,6 @@ stop_listener_thread(rmw_context_t * ctx)
     }
   }
 
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "discovery thread stopped");
+  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[listener thread] stopped");
   return RMW_RET_OK;
 }

@@ -19,9 +19,9 @@
 #include "rmw/qos_profiles.h"
 
 #include "rmw_gurumdds_cpp/context_listener_thread.hpp"
-#include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/gid.hpp"
 #include "rmw_gurumdds_cpp/qos.hpp"
+#include "rmw_gurumdds_cpp/graph_cache.hpp"
 #include "rmw_gurumdds_cpp/rmw_context_impl.hpp"
 #include "rmw_gurumdds_cpp/rmw_publisher.hpp"
 #include "rmw_gurumdds_cpp/rmw_subscription.hpp"
@@ -821,8 +821,6 @@ graph_on_client_deleted(
 rmw_ret_t
 graph_on_participant_info(rmw_context_impl_t * ctx)
 {
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "ParticipantEntitiesInfo reader active");
-
   bool taken = false;
   rmw_dds_common::msg::ParticipantEntitiesInfo msg;
 
@@ -859,8 +857,6 @@ graph_add_participant(
   const dds_GUID_t * const dp_guid,
   const char * const enclave)
 {
-  RCUTILS_LOG_DEBUG_NAMED(RMW_GURUMDDS_ID, "[discovery thread] assert participant: ");
-
   rmw_gid_t gid;
   guid_to_gid(*dp_guid, gid);
 
